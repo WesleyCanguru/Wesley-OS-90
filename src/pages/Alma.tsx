@@ -1,0 +1,242 @@
+import { 
+  Brain, 
+  BookOpen, 
+  Sunrise, 
+  Zap, 
+  Smile, 
+  CalendarDays, 
+  Flame,
+  CheckCircle2,
+  Circle,
+  Quote
+} from "lucide-react";
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer 
+} from "recharts";
+import { cn } from "@/lib/utils";
+
+// Dados simulados para o gráfico de Energia vs Humor
+const energyMoodData = [
+  { day: "12/03", energia: 4, humor: 4 },
+  { day: "13/03", energia: 3, humor: 4 },
+  { day: "14/03", energia: 5, humor: 5 },
+  { day: "15/03", energia: 4, humor: 3 },
+  { day: "16/03", energia: 2, humor: 3 },
+  { day: "17/03", energia: 4, humor: 4 },
+  { day: "18/03", energia: 4, humor: 5 },
+];
+
+// Dados simulados para o tracker de hábitos (Últimos 7 dias)
+const habitsTracker = [
+  { name: "Rotina Matinal", icon: Sunrise, days: [true, true, true, false, true, true, true] },
+  { name: "Leitura (15m)", icon: BookOpen, days: [true, true, true, true, true, false, true] },
+  { name: "Espiritualidade", icon: Brain, days: [false, true, true, true, true, true, true] },
+  { name: "Organização", icon: CalendarDays, days: [true, true, false, true, true, true, true] },
+];
+
+export function Alma() {
+  return (
+    <div className="space-y-10 animate-in fade-in duration-500">
+      {/* Header */}
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <div className="text-sm font-bold text-text-muted uppercase tracking-widest mb-2">Pilar 2</div>
+          <h1 className="text-4xl md:text-5xl font-serif font-semibold tracking-tight text-primary">Alma & Mente</h1>
+        </div>
+        <div className="flex gap-3">
+          <div className="bg-surface border border-surface-border px-5 py-2.5 rounded-full flex items-center gap-3 shadow-sm">
+            <Flame className="w-5 h-5 text-orange-500" />
+            <span className="font-medium text-secondary">Sequência: <span className="font-mono font-bold text-primary">12 Dias</span></span>
+          </div>
+        </div>
+      </header>
+
+      {/* Top Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <MetricCard label="Score Disciplina" value="92" subtext="Excelente" icon={CheckCircle2} color="text-emerald-600" />
+        <MetricCard label="Score Constância" value="88" subtext="+5% vs semana ant." icon={CalendarDays} color="text-primary" />
+        <MetricCard label="Média Energia" value="3.8" subtext="Meta: > 4.0" icon={Zap} color="text-yellow-500" />
+        <MetricCard label="Média Humor" value="4.1" subtext="Estável" icon={Smile} color="text-blue-500" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Left Column: Habits & Reflections */}
+        <div className="lg:col-span-2 space-y-8">
+          
+          {/* Habit Tracker */}
+          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm overflow-x-auto">
+            <h2 className="font-serif text-2xl font-semibold text-secondary mb-6">Consistência de Hábitos</h2>
+            
+            <div className="min-w-[500px]">
+              {/* Header Dias */}
+              <div className="flex mb-4">
+                <div className="w-40 flex-shrink-0"></div>
+                <div className="flex-1 flex justify-between px-4">
+                  {["D-6", "D-5", "D-4", "D-3", "D-2", "Ontem", "Hoje"].map((day, i) => (
+                    <div key={i} className="text-xs font-mono text-text-muted uppercase tracking-wider w-8 text-center">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Linhas de Hábitos */}
+              <div className="space-y-4">
+                {habitsTracker.map((habit, idx) => (
+                  <div key={idx} className="flex items-center">
+                    <div className="w-40 flex-shrink-0 flex items-center gap-3">
+                      <div className="p-2 bg-background border border-surface-border rounded-lg">
+                        <habit.icon className="w-4 h-4 text-primary" />
+                      </div>
+                      <span className="font-medium text-sm text-secondary">{habit.name}</span>
+                    </div>
+                    <div className="flex-1 flex justify-between px-4">
+                      {habit.days.map((done, i) => (
+                        <div key={i} className="w-8 flex justify-center">
+                          {done ? (
+                            <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center shadow-sm">
+                              <CheckCircle2 className="w-4 h-4 text-white" />
+                            </div>
+                          ) : (
+                            <div className="w-6 h-6 rounded-md bg-background border border-surface-border flex items-center justify-center">
+                              <Circle className="w-3 h-3 text-surface-border" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Energy & Mood Chart */}
+          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="font-serif text-2xl font-semibold text-secondary">Energia vs. Humor</h2>
+              <div className="flex gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                  <span className="text-text-muted">Energia</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-400" />
+                  <span className="text-text-muted">Humor</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="h-[250px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={energyMoodData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorEnergia" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#FACC15" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#FACC15" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorHumor" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#60A5FA" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#60A5FA" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E2D9" />
+                  <XAxis 
+                    dataKey="day" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#6B7280', fontSize: 12, fontFamily: 'JetBrains Mono' }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    domain={[0, 5]} 
+                    ticks={[1, 2, 3, 4, 5]}
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#6B7280', fontSize: 12, fontFamily: 'JetBrains Mono' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#1A1A1A', 
+                      borderRadius: '12px',
+                      border: 'none',
+                      color: '#fff',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                    }}
+                    itemStyle={{ fontFamily: 'JetBrains Mono' }}
+                  />
+                  <Area type="monotone" dataKey="energia" stroke="#FACC15" strokeWidth={3} fillOpacity={1} fill="url(#colorEnergia)" />
+                  <Area type="monotone" dataKey="humor" stroke="#60A5FA" strokeWidth={3} fillOpacity={1} fill="url(#colorHumor)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Right Column: Reflections & Notes */}
+        <div className="space-y-8">
+          
+          {/* Daily Note */}
+          <div className="bg-primary text-white rounded-3xl p-8 shadow-md relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
+            <div className="flex items-center gap-3 mb-6 relative z-10">
+              <Quote className="w-6 h-6 text-white/50" />
+              <h2 className="font-serif text-xl font-semibold">Nota do Dia</h2>
+            </div>
+            <p className="text-white/90 leading-relaxed font-light italic relative z-10">
+              "A disciplina de hoje é o conforto de amanhã. Manter a rotina matinal mesmo cansado fez toda a diferença na produtividade da tarde."
+            </p>
+            <div className="mt-6 text-xs font-mono text-white/50 uppercase tracking-widest relative z-10">
+              Ontem, 17 de Março
+            </div>
+          </div>
+
+          {/* Recent Wins */}
+          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
+            <h2 className="font-serif text-xl font-semibold text-secondary mb-6">Últimas Vitórias</h2>
+            <div className="space-y-4">
+              <WinItem day="Ontem" text="Fechei todos os anéis do Apple Watch e li 20 páginas." />
+              <WinItem day="D-2" text="Resisti à sobremesa no jantar de negócios." />
+              <WinItem day="D-3" text="Acordei às 05:30 sem usar o botão soneca." />
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, subtext, icon: Icon, color }: any) {
+  return (
+    <div className="bg-surface border border-surface-border rounded-2xl p-5 shadow-sm">
+      <div className="flex justify-between items-start mb-3">
+        <div className="text-xs font-bold text-text-muted uppercase tracking-widest">{label}</div>
+        <Icon className={cn("w-4 h-4", color || "text-text-muted")} />
+      </div>
+      <div className="text-3xl font-serif font-bold text-secondary mb-1">{value}</div>
+      <div className="text-xs font-medium text-text-muted">
+        {subtext}
+      </div>
+    </div>
+  );
+}
+
+function WinItem({ day, text }: { day: string, text: string }) {
+  return (
+    <div className="flex gap-4">
+      <div className="w-12 flex-shrink-0 text-xs font-mono text-text-muted pt-1">{day}</div>
+      <div className="flex-1 bg-background border border-surface-border rounded-xl p-3 text-sm text-secondary">
+        {text}
+      </div>
+    </div>
+  );
+}
