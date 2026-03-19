@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   UploadCloud, 
@@ -11,13 +11,17 @@ import {
   Image as ImageIcon,
   Loader2,
   Utensils,
-  Dumbbell
+  Dumbbell,
+  AlertCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 export function Ontem() {
   const navigate = useNavigate();
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   
   // Estados para os dados extraídos
   const [fitnessData, setFitnessData] = useState({
@@ -32,12 +36,40 @@ export function Ontem() {
   const [treinoFeito, setTreinoFeito] = useState<boolean | null>(null);
   const [dietaAderente, setDietaAderente] = useState<boolean | null>(null);
   const [observacoes, setObservacoes] = useState("");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
-  const handleFileUpload = () => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
     setStep(2); // Vai para o estado de "Analisando"
-    
-    // Simula o tempo de processamento de uma IA lendo a imagem (OCR)
-    setTimeout(() => {
+    setLoading(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      // 1. Upload para o Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      const filePath = `progress-photos/${fileName}`;
+
+      const { error: uploadError, data } = await supabase.storage
+        .from('progress-photos')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('progress-photos')
+        .getPublicUrl(filePath);
+
+      setPhotoUrl(publicUrl);
+
+      // 2. Simula o tempo de processamento de uma IA lendo a imagem (OCR)
+      // No futuro, aqui chamaria uma Edge Function ou API externa para OCR
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       setFitnessData({
         caloriasAtivas: "840",
         caloriasTotais: "2950",
@@ -46,13 +78,53 @@ export function Ontem() {
         passos: "11240",
       });
       setStep(3); // Vai para o estado de "Revisão"
-    }, 2000);
+    } catch (error) {
+      console.error("Erro no upload/processamento:", error);
+      alert("Erro ao processar imagem. Tente novamente.");
+      setStep(1);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleFinish = () => {
-    console.log("Concluindo fechamento de ontem:", { fitnessData, treinoFeito, dietaAderente, observacoes });
-    navigate("/");
+  const handleFinish = async () => {
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+      const closureData = {
+        user_id: user.id,
+        review: observacoes,
+        photo_url: photoUrl,
+        fitness_data: fitnessData, // Assuming jsonb or columns added
+        workout_done: treinoFeito,
+        diet_adherence: dietaAderente,
+        created_at: `${yesterdayStr}T23:59:59Z`
+      };
+
+      const { error } = await supabase
+        .from('daily_closures')
+        .insert([closureData]);
+
+      if (error) throw error;
+
+      navigate("/");
+    } catch (error) {
+      console.error("Erro ao salvar fechamento:", error);
+      alert("Erro ao salvar. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const formattedYesterday = yesterdayDate.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
 
   return (
     <div className="max-w-4xl mx-auto space-y-10 animate-in fade-in duration-500">
@@ -60,15 +132,16 @@ export function Ontem() {
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="text-sm font-bold text-text-muted uppercase tracking-widest mb-2">Fechamento do Dia</div>
-          <h1 className="text-4xl md:text-5xl font-serif font-semibold tracking-tight text-primary">Ontem, 17 de Março</h1>
+          <h1 className="text-4xl md:text-5xl font-serif font-semibold tracking-tight text-primary">Ontem, {formattedYesterday}</h1>
         </div>
         {step === 3 && (
           <button 
             onClick={handleFinish}
-            className="bg-primary text-white px-6 py-3 rounded-full font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-md"
+            disabled={saving}
+            className="bg-primary text-white px-6 py-3 rounded-full font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
           >
-            Concluir Fechamento
-            <CheckCircle2 className="w-4 h-4" />
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Concluir Fechamento"}
+            {!saving && <CheckCircle2 className="w-4 h-4" />}
           </button>
         )}
       </header>
@@ -85,14 +158,17 @@ export function Ontem() {
               Envie o print do seu resumo diário do Apple Watch para extração automática dos dados.
             </p>
             
-            <button 
-              onClick={handleFileUpload}
-              className="w-full bg-background border-2 border-dashed border-surface-border hover:border-primary/50 hover:bg-surface-hover transition-all rounded-2xl p-8 flex flex-col items-center justify-center gap-3 group cursor-pointer"
-            >
+            <label className="w-full bg-background border-2 border-dashed border-surface-border hover:border-primary/50 hover:bg-surface-hover transition-all rounded-2xl p-8 flex flex-col items-center justify-center gap-3 group cursor-pointer">
+              <input 
+                type="file" 
+                accept="image/*" 
+                className="hidden" 
+                onChange={handleFileUpload}
+              />
               <ImageIcon className="w-8 h-8 text-text-muted group-hover:text-primary transition-colors" />
               <span className="font-medium text-secondary">Clique para selecionar a imagem</span>
               <span className="text-sm text-text-muted">PNG, JPG até 5MB</span>
-            </button>
+            </label>
           </div>
         </div>
       )}

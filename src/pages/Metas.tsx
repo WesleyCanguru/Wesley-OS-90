@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Target, 
   Flag, 
@@ -10,33 +10,109 @@ import {
   Compass,
   CheckCircle2,
   Plus,
-  Trash2
+  Trash2,
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/Modal";
-
-// Dados simulados das metas
-const initialGoalsData = {
-  corpo: [
-    { id: 1, title: "Reduzir BF para 12%", current: 16.5, target: 12, unit: "%", inverse: true, start: 18 },
-    { id: 2, title: "Correr 5km sub 25min", current: 28, target: 24.5, unit: "m", inverse: true, start: 32 },
-  ],
-  alma: [
-    { id: 3, title: "Ler 3 livros de negócios", current: 1, target: 3, unit: " livros", start: 0 },
-    { id: 4, title: "Meditar 60 dias no ciclo", current: 12, target: 60, unit: " dias", start: 0 },
-  ],
-  trabalho: [
-    { id: 5, title: "Faturar R$ 40k no ciclo", current: 15.4, target: 40, unit: "k", start: 0 },
-    { id: 6, title: "Fechar 10 clientes High-Ticket", current: 3, target: 10, unit: " clientes", start: 0 },
-  ]
-};
+import { supabase } from "@/lib/supabase";
 
 export function Metas() {
   const currentDay = 18;
   const totalDays = 90;
   const cycleProgress = Math.round((currentDay / totalDays) * 100);
+  const [loading, setLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [goals, setGoals] = useState(initialGoalsData);
+  const [goals, setGoals] = useState<{ corpo: any[], alma: any[], trabalho: any[] }>({ corpo: [], alma: [], trabalho: [] });
+  
+  const [newGoal, setNewGoal] = useState({
+    title: "",
+    category: "Corpo",
+    target_value: "",
+    unit: "",
+    start_value: ""
+  });
+
+  useEffect(() => {
+    fetchGoals();
+  }, []);
+
+  const fetchGoals = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('goals')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (data) {
+        const grouped = data.reduce((acc: any, goal: any) => {
+          const cat = goal.category.toLowerCase();
+          if (!acc[cat]) acc[cat] = [];
+          acc[cat].push({
+            id: goal.id,
+            title: goal.title,
+            current: goal.current_value,
+            target: goal.target_value,
+            unit: goal.unit,
+            start: goal.start_value || 0,
+            inverse: goal.inverse || false
+          });
+          return acc;
+        }, { corpo: [], alma: [], trabalho: [] });
+        setGoals(grouped);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar metas:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddGoal = async () => {
+    if (!newGoal.title || !newGoal.target_value) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { error } = await supabase
+        .from('goals')
+        .insert([{
+          user_id: user.id,
+          title: newGoal.title,
+          category: newGoal.category,
+          target_value: parseFloat(newGoal.target_value),
+          current_value: parseFloat(newGoal.start_value || "0"),
+          start_value: parseFloat(newGoal.start_value || "0"),
+          unit: newGoal.unit
+        }]);
+
+      if (error) throw error;
+      
+      setNewGoal({ title: "", category: "Corpo", target_value: "", unit: "", start_value: "" });
+      fetchGoals();
+    } catch (error) {
+      console.error("Erro ao adicionar meta:", error);
+      alert("Erro ao adicionar meta.");
+    }
+  };
+
+  const handleDeleteGoal = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('goals')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchGoals();
+    } catch (error) {
+      console.error("Erro ao deletar meta:", error);
+      alert("Erro ao deletar meta.");
+    }
+  };
 
   const handleEditGoals = () => {
     setIsEditModalOpen(true);
@@ -51,6 +127,14 @@ export function Metas() {
     console.log(`Visualizando marco: ${milestone.label}`);
     alert(`Detalhes do marco "${milestone.label}" em desenvolvimento.`);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-10">
@@ -201,7 +285,10 @@ export function Metas() {
                     <div className="font-medium text-secondary">{goal.title}</div>
                     <div className="text-xs text-text-muted">Meta: {goal.target}{goal.unit}</div>
                   </div>
-                  <button className="p-2 text-text-muted hover:text-red-500 transition-colors">
+                  <button 
+                    onClick={() => handleDeleteGoal(goal.id)}
+                    className="p-2 text-text-muted hover:text-red-500 transition-colors"
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -214,11 +301,21 @@ export function Metas() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-text-muted ml-1">Título</label>
-                <input type="text" placeholder="Ex: Ler 5 livros" className="w-full bg-background border border-surface-border rounded-xl px-4 py-2 text-sm outline-none focus:border-primary" />
+                <input 
+                  type="text" 
+                  value={newGoal.title}
+                  onChange={(e) => setNewGoal({...newGoal, title: e.target.value})}
+                  placeholder="Ex: Ler 5 livros" 
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-2 text-sm outline-none focus:border-primary" 
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-text-muted ml-1">Pilar</label>
-                <select className="w-full bg-background border border-surface-border rounded-xl px-4 py-2 text-sm outline-none focus:border-primary">
+                <select 
+                  value={newGoal.category}
+                  onChange={(e) => setNewGoal({...newGoal, category: e.target.value})}
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-2 text-sm outline-none focus:border-primary"
+                >
                   <option>Corpo</option>
                   <option>Alma</option>
                   <option>Trabalho</option>
@@ -226,14 +323,29 @@ export function Metas() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-text-muted ml-1">Meta Final</label>
-                <input type="number" placeholder="0" className="w-full bg-background border border-surface-border rounded-xl px-4 py-2 text-sm outline-none focus:border-primary" />
+                <input 
+                  type="number" 
+                  value={newGoal.target_value}
+                  onChange={(e) => setNewGoal({...newGoal, target_value: e.target.value})}
+                  placeholder="0" 
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-2 text-sm outline-none focus:border-primary" 
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-text-muted ml-1">Unidade</label>
-                <input type="text" placeholder="Ex: kg, %, livros" className="w-full bg-background border border-surface-border rounded-xl px-4 py-2 text-sm outline-none focus:border-primary" />
+                <input 
+                  type="text" 
+                  value={newGoal.unit}
+                  onChange={(e) => setNewGoal({...newGoal, unit: e.target.value})}
+                  placeholder="Ex: kg, %, livros" 
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-2 text-sm outline-none focus:border-primary" 
+                />
               </div>
             </div>
-            <button className="w-full py-3 bg-background border border-dashed border-primary/30 text-primary rounded-xl text-sm font-medium hover:bg-primary/5 transition-colors flex items-center justify-center gap-2">
+            <button 
+              onClick={handleAddGoal}
+              className="w-full py-3 bg-background border border-dashed border-primary/30 text-primary rounded-xl text-sm font-medium hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
+            >
               <Plus className="w-4 h-4" />
               Adicionar Meta
             </button>
@@ -244,16 +356,7 @@ export function Metas() {
               onClick={() => setIsEditModalOpen(false)}
               className="flex-1 py-3 bg-background border border-surface-border rounded-xl text-sm font-medium hover:bg-surface-hover transition-colors"
             >
-              Cancelar
-            </button>
-            <button 
-              onClick={() => {
-                alert("Metas atualizadas com sucesso!");
-                setIsEditModalOpen(false);
-              }}
-              className="flex-1 py-3 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md"
-            >
-              Salvar Alterações
+              Fechar
             </button>
           </div>
         </div>

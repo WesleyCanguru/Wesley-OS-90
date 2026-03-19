@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, X, Battery, Smile, Droplets, Dumbbell, Utensils, Target, BookOpen, Trophy, ArrowRight } from "lucide-react";
+import { Check, X, Battery, Smile, Droplets, Dumbbell, Utensils, Target, BookOpen, Trophy, ArrowRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 export function Hoje() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [energy, setEnergy] = useState(3);
   const [mood, setMood] = useState(3);
   const [water, setWater] = useState(0);
@@ -18,15 +21,103 @@ export function Hoje() {
     { id: 4, name: "Foco Profissional", done: false, icon: Target },
   ]);
 
+  useEffect(() => {
+    fetchTodayCheckin();
+  }, []);
+
+  const fetchTodayCheckin = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const today = new Date().toISOString().split('T')[0];
+      
+      const { data, error } = await supabase
+        .from('daily_checkins')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('created_at', `${today}T00:00:00Z`)
+        .lte('created_at', `${today}T23:59:59Z`)
+        .single();
+
+      if (data) {
+        setEnergy(data.energy_level);
+        setMood(data.mood_level || 3); // Assuming mood_level was added or using mood as text
+        setWater(data.water_intake);
+        if (data.habits) {
+          setHabits(data.habits);
+        }
+        // Note: victory and improvement might need a separate table or columns in daily_checkins
+        // For now, let's assume they are in the same table if we update the schema or just save them in a jsonb field
+      }
+    } catch (error) {
+      console.error("Erro ao buscar check-in:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleHabit = (id: number) => {
     setHabits(habits.map(h => h.id === id ? { ...h, done: !h.done } : h));
   };
 
-  const handleSave = () => {
-    console.log("Salvando check-in:", { energy, mood, water, habits, victory, improvement });
-    // Por enquanto apenas navegamos de volta, no futuro salvaremos no Firebase
-    navigate("/");
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const today = new Date().toISOString().split('T')[0];
+
+      const checkinData = {
+        user_id: user.id,
+        energy_level: energy,
+        mood_level: mood, // We'll need to ensure this column exists or use 'mood' text
+        water_intake: water,
+        habits: habits,
+        victory: victory,
+        improvement: improvement,
+        updated_at: new Date().toISOString()
+      };
+
+      // Check if exists to update or insert
+      const { data: existing } = await supabase
+        .from('daily_checkins')
+        .select('id')
+        .eq('user_id', user.id)
+        .gte('created_at', `${today}T00:00:00Z`)
+        .lte('created_at', `${today}T23:59:59Z`)
+        .single();
+
+      if (existing) {
+        await supabase
+          .from('daily_checkins')
+          .update(checkinData)
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('daily_checkins')
+          .insert([checkinData]);
+      }
+
+      navigate("/");
+    } catch (error) {
+      console.error("Erro ao salvar check-in:", error);
+      alert("Erro ao salvar. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const todayDate = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
 
   return (
     <div className="max-w-4xl mx-auto space-y-10">
@@ -34,14 +125,15 @@ export function Hoje() {
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="text-sm font-bold text-text-muted uppercase tracking-widest mb-2">Check-in Diário</div>
-          <h1 className="text-4xl md:text-5xl font-serif font-semibold tracking-tight text-primary">Hoje, 18 de Março</h1>
+          <h1 className="text-4xl md:text-5xl font-serif font-semibold tracking-tight text-primary">Hoje, {todayDate}</h1>
         </div>
         <button 
           onClick={handleSave}
-          className="bg-primary text-white px-6 py-3 rounded-full font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-md"
+          disabled={saving}
+          className="bg-primary text-white px-6 py-3 rounded-full font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
         >
-          Salvar Check-in
-          <ArrowRight className="w-4 h-4" />
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar Check-in"}
+          {!saving && <ArrowRight className="w-4 h-4" />}
         </button>
       </header>
 

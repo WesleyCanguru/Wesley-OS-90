@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, 
   CalendarCheck, 
@@ -8,10 +8,13 @@ import {
   Briefcase, 
   Target,
   Menu,
-  X
+  X,
+  LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { Button } from "./Button";
 
 const navItems = [
   { name: "Início", path: "/", icon: LayoutDashboard },
@@ -26,6 +29,12 @@ const navItems = [
 export function Layout() {
   const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -64,7 +73,7 @@ export function Layout() {
           ))}
         </nav>
 
-        <div className="p-6 border-t border-surface-border">
+        <div className="p-6 border-t border-surface-border space-y-4">
           <div className="bg-background rounded-2xl p-4 border border-surface-border">
             <div className="text-xs font-bold text-text-muted uppercase tracking-widest mb-2">Progresso Geral</div>
             <div className="h-1.5 w-full bg-surface-border rounded-full overflow-hidden">
@@ -72,6 +81,15 @@ export function Layout() {
             </div>
             <div className="mt-2 text-[10px] font-medium text-text-muted">Dia 18 de 90</div>
           </div>
+          
+          <Button 
+            variant="outline" 
+            onClick={handleLogout}
+            className="w-full justify-start gap-3 border-none text-text-muted hover:text-red-500 hover:bg-red-50"
+          >
+            <LogOut className="w-5 h-5" />
+            Sair
+          </Button>
         </div>
       </aside>
 
@@ -97,6 +115,14 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
+        
+        <button 
+          onClick={handleLogout}
+          className="w-12 h-12 rounded-2xl flex items-center justify-center text-text-muted hover:text-red-500 hover:bg-red-50 transition-all duration-300"
+          title="Sair"
+        >
+          <LogOut className="w-6 h-6" />
+        </button>
       </aside>
 
       {/* Mobile Bottom Navigation */}

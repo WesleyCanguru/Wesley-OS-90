@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "./lib/supabase";
 import { Layout } from "./components/Layout";
 import { Dashboard } from "./pages/Dashboard";
 import { Hoje } from "./pages/Hoje";
@@ -12,9 +14,40 @@ import { Corpo } from "./pages/Corpo";
 import { Alma } from "./pages/Alma";
 import { Agencia } from "./pages/Agencia";
 import { Metas } from "./pages/Metas";
-import { PlaceholderPage } from "./pages/Placeholder";
+import { Auth } from "./components/Auth";
+import { Session } from "@supabase/supabase-js";
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-neutral-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Auth />;
+  }
+
   return (
     <BrowserRouter>
       <Routes>
@@ -26,6 +59,7 @@ export default function App() {
           <Route path="alma" element={<Alma />} />
           <Route path="agencia" element={<Agencia />} />
           <Route path="metas" element={<Metas />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

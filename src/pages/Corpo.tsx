@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Scale, 
   Camera, 
@@ -10,7 +10,8 @@ import {
   Droplets,
   ChevronRight,
   Plus,
-  History
+  History,
+  Loader2
 } from "lucide-react";
 import { 
   LineChart, 
@@ -23,27 +24,122 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/Modal";
-
-// Dados simulados para o gráfico de peso
-const weightData = [
-  { day: "01", peso: 84.5 },
-  { day: "04", peso: 84.2 },
-  { day: "07", peso: 83.8 },
-  { day: "10", peso: 83.9 },
-  { day: "13", peso: 83.1 },
-  { day: "16", peso: 82.7 },
-  { day: "18", peso: 82.4 },
-];
+import { supabase } from "@/lib/supabase";
 
 export function Corpo() {
+  const [loading, setLoading] = useState(true);
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [isMeasurementsModalOpen, setIsMeasurementsModalOpen] = useState(false);
   const [isFoodModalOpen, setIsFoodModalOpen] = useState(false);
   const [selectedMacro, setSelectedMacro] = useState<string | null>(null);
+  
+  const [weight, setWeight] = useState<number>(0);
+  const [weightHistory, setWeightHistory] = useState<any[]>([]);
+  const [measurements, setMeasurements] = useState<any>({});
+  const [foodLogs, setFoodLogs] = useState<any[]>([]);
+  
+  const [newWeight, setNewWeight] = useState("");
+  const [newFoodAmount, setNewFoodAmount] = useState("");
+
+  useEffect(() => {
+    fetchBodyData();
+  }, []);
+
+  const fetchBodyData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 1. Fetch Weight History
+      const { data: stats, error: statsError } = await supabase
+        .from('body_stats')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+
+      if (stats && stats.length > 0) {
+        const history = stats.map(s => ({
+          day: new Date(s.created_at).toLocaleDateString('pt-BR', { day: '2-digit' }),
+          peso: s.weight
+        }));
+        setWeightHistory(history);
+        setWeight(stats[stats.length - 1].weight);
+        setMeasurements(stats[stats.length - 1].measurements || {});
+      }
+
+      // 2. Fetch Food Logs for today
+      const today = new Date().toISOString().split('T')[0];
+      const { data: foods, error: foodsError } = await supabase
+        .from('food_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('created_at', `${today}T00:00:00Z`);
+
+      if (foods) {
+        setFoodLogs(foods);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar dados corporais:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveWeight = async () => {
+    if (!newWeight) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { error } = await supabase
+        .from('body_stats')
+        .insert([{
+          user_id: user.id,
+          weight: parseFloat(newWeight),
+          measurements: measurements // Keep existing measurements
+        }]);
+
+      if (error) throw error;
+      
+      setIsWeightModalOpen(false);
+      setNewWeight("");
+      fetchBodyData();
+    } catch (error) {
+      console.error("Erro ao salvar peso:", error);
+      alert("Erro ao salvar peso.");
+    }
+  };
+
+  const handleSaveFood = async () => {
+    if (!newFoodAmount) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { error } = await supabase
+        .from('food_logs')
+        .insert([{
+          user_id: user.id,
+          meal_type: selectedMacro,
+          calories: selectedMacro === 'Calorias' ? parseInt(newFoodAmount) : 0,
+          amount: selectedMacro !== 'Calorias' ? parseFloat(newFoodAmount) : 0,
+          unit: selectedMacro === 'Calorias' ? 'kcal' : 'g'
+        }]);
+
+      if (error) throw error;
+      
+      setIsFoodModalOpen(false);
+      setNewFoodAmount("");
+      fetchBodyData();
+    } catch (error) {
+      console.error("Erro ao salvar alimento:", error);
+      alert("Erro ao salvar alimento.");
+    }
+  };
 
   const handleNewPhoto = () => {
     console.log("Abrindo câmera para nova foto...");
-    alert("Funcionalidade de câmera será implementada com Firebase Storage.");
+    alert("Funcionalidade de câmera será implementada com Supabase Storage.");
   };
 
   const handleRegisterMeasurements = () => {
@@ -68,6 +164,19 @@ export function Corpo() {
     setSelectedMacro(macro);
     setIsFoodModalOpen(true);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const totalCalories = foodLogs.reduce((acc, curr) => acc + (curr.calories || 0), 0);
+  const totalProteins = foodLogs.filter(f => f.meal_type === 'Proteínas').reduce((acc, curr) => acc + (curr.amount || 0), 0);
+  const totalCarbs = foodLogs.filter(f => f.meal_type === 'Carboidratos').reduce((acc, curr) => acc + (curr.amount || 0), 0);
+  const totalFats = foodLogs.filter(f => f.meal_type === 'Gorduras').reduce((acc, curr) => acc + (curr.amount || 0), 0);
 
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-10">
@@ -98,14 +207,14 @@ export function Corpo() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard 
           label="Peso Atual" 
-          value="82.4 kg" 
-          subtext="-2.1 kg no ciclo" 
+          value={`${weight} kg`} 
+          subtext="Meta: 78 kg" 
           icon={Scale} 
           trend="down" 
           onClick={handleRegisterWeight}
         />
-        <MetricCard label="Média Semanal" value="82.7 kg" subtext="Estável" icon={Activity} onClick={() => alert("Visualizando histórico de peso...")} />
-        <MetricCard label="Gordura Est." value="16.5%" subtext="Meta: 12%" icon={TrendingDown} trend="down" onClick={handleRegisterMeasurements} />
+        <MetricCard label="Média Semanal" value={`${weight} kg`} subtext="Estável" icon={Activity} onClick={() => alert("Visualizando histórico de peso...")} />
+        <MetricCard label="Gordura Est." value={`${measurements.bf || '0'}%`} subtext="Meta: 12%" icon={TrendingDown} trend="down" onClick={handleRegisterMeasurements} />
         <MetricCard label="Passos (Média)" value="10.2k" subtext="Últimos 7 dias" icon={Footprints} onClick={() => handleSyncHealth("Passos")} />
       </div>
 
@@ -127,7 +236,7 @@ export function Corpo() {
             
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={weightData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <LineChart data={weightHistory.length > 0 ? weightHistory : [{day: '01', peso: weight}]} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E2D9" />
                   <XAxis 
                     dataKey="day" 
@@ -213,12 +322,12 @@ export function Corpo() {
             </div>
 
             <div className="space-y-6">
-              <MacroBar label="Proteínas" current={145} target={180} unit="g" color="bg-primary" onClick={() => handleLogFood("Proteínas")} />
-              <MacroBar label="Carboidratos" current={120} target={200} unit="g" color="bg-blue-400" onClick={() => handleLogFood("Carboidratos")} />
-              <MacroBar label="Gorduras" current={55} target={70} unit="g" color="bg-yellow-500" onClick={() => handleLogFood("Gorduras")} />
+              <MacroBar label="Proteínas" current={totalProteins} target={180} unit="g" color="bg-primary" onClick={() => handleLogFood("Proteínas")} />
+              <MacroBar label="Carboidratos" current={totalCarbs} target={200} unit="g" color="bg-blue-400" onClick={() => handleLogFood("Carboidratos")} />
+              <MacroBar label="Gorduras" current={totalFats} target={70} unit="g" color="bg-yellow-500" onClick={() => handleLogFood("Gorduras")} />
               
               <div className="pt-4 border-t border-surface-border mt-4">
-                <MacroBar label="Calorias Totais" current={1850} target={2200} unit="kcal" color="bg-secondary" onClick={() => handleLogFood("Calorias")} />
+                <MacroBar label="Calorias Totais" current={totalCalories} target={2200} unit="kcal" color="bg-secondary" onClick={() => handleLogFood("Calorias")} />
               </div>
             </div>
             
@@ -276,6 +385,8 @@ export function Corpo() {
                 type="number" 
                 step="0.1" 
                 placeholder="00.0" 
+                value={newWeight}
+                onChange={(e) => setNewWeight(e.target.value)}
                 className="text-5xl font-serif font-bold text-secondary bg-transparent border-none outline-none w-32 text-center focus:ring-0"
                 autoFocus
               />
@@ -288,10 +399,7 @@ export function Corpo() {
               Histórico
             </button>
             <button 
-              onClick={() => {
-                alert("Peso registrado com sucesso!");
-                setIsWeightModalOpen(false);
-              }}
+              onClick={handleSaveWeight}
               className="p-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md"
             >
               Salvar Peso
@@ -307,19 +415,27 @@ export function Corpo() {
       >
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
-            <MeasurementInput label="Cintura" unit="cm" />
-            <MeasurementInput label="Peito" unit="cm" />
-            <MeasurementInput label="Braço (E)" unit="cm" />
-            <MeasurementInput label="Braço (D)" unit="cm" />
-            <MeasurementInput label="Coxa (E)" unit="cm" />
-            <MeasurementInput label="Coxa (D)" unit="cm" />
-            <MeasurementInput label="Gordura Est." unit="%" />
-            <MeasurementInput label="Massa Muscular" unit="kg" />
+            <MeasurementInput label="Cintura" unit="cm" value={measurements.waist} onChange={(v) => setMeasurements({...measurements, waist: v})} />
+            <MeasurementInput label="Peito" unit="cm" value={measurements.chest} onChange={(v) => setMeasurements({...measurements, chest: v})} />
+            <MeasurementInput label="Braço (E)" unit="cm" value={measurements.armL} onChange={(v) => setMeasurements({...measurements, armL: v})} />
+            <MeasurementInput label="Braço (D)" unit="cm" value={measurements.armR} onChange={(v) => setMeasurements({...measurements, armR: v})} />
+            <MeasurementInput label="Coxa (E)" unit="cm" value={measurements.thighL} onChange={(v) => setMeasurements({...measurements, thighL: v})} />
+            <MeasurementInput label="Coxa (D)" unit="cm" value={measurements.thighR} onChange={(v) => setMeasurements({...measurements, thighR: v})} />
+            <MeasurementInput label="Gordura Est." unit="%" value={measurements.bf} onChange={(v) => setMeasurements({...measurements, bf: v})} />
+            <MeasurementInput label="Massa Muscular" unit="kg" value={measurements.muscle} onChange={(v) => setMeasurements({...measurements, muscle: v})} />
           </div>
           <button 
-            onClick={() => {
-              alert("Medidas salvas com sucesso!");
-              setIsMeasurementsModalOpen(false);
+            onClick={async () => {
+              try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) throw new Error("Usuário não autenticado");
+                await supabase.from('body_stats').insert([{ user_id: user.id, weight: weight, measurements: measurements }]);
+                alert("Medidas salvas com sucesso!");
+                setIsMeasurementsModalOpen(false);
+                fetchBodyData();
+              } catch (e) {
+                alert("Erro ao salvar medidas.");
+              }
             }}
             className="w-full p-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md"
           >
@@ -343,6 +459,8 @@ export function Corpo() {
               <input 
                 type="number" 
                 placeholder="0" 
+                value={newFoodAmount}
+                onChange={(e) => setNewFoodAmount(e.target.value)}
                 className="text-4xl font-serif font-bold text-secondary bg-transparent border-none outline-none w-24 focus:ring-0"
                 autoFocus
               />
@@ -354,7 +472,11 @@ export function Corpo() {
             <div className="text-xs font-bold text-text-muted uppercase tracking-widest px-1">Sugestões Rápidas</div>
             <div className="flex flex-wrap gap-2">
               {[10, 20, 30, 50].map(val => (
-                <button key={val} className="px-4 py-2 bg-background border border-surface-border rounded-xl text-sm hover:bg-surface-hover transition-colors">
+                <button 
+                  key={val} 
+                  onClick={() => setNewFoodAmount(val.toString())}
+                  className="px-4 py-2 bg-background border border-surface-border rounded-xl text-sm hover:bg-surface-hover transition-colors"
+                >
                   +{val}{selectedMacro === 'Calorias' ? '' : 'g'}
                 </button>
               ))}
@@ -362,10 +484,7 @@ export function Corpo() {
           </div>
 
           <button 
-            onClick={() => {
-              alert(`${selectedMacro} registrado com sucesso!`);
-              setIsFoodModalOpen(false);
-            }}
+            onClick={handleSaveFood}
             className="w-full p-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md"
           >
             Confirmar Registro
@@ -376,7 +495,7 @@ export function Corpo() {
   );
 }
 
-function MeasurementInput({ label, unit }: { label: string, unit: string }) {
+function MeasurementInput({ label, unit, value, onChange }: { label: string, unit: string, value?: any, onChange: (v: string) => void }) {
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-bold text-text-muted uppercase tracking-widest px-1">{label}</label>
@@ -385,6 +504,8 @@ function MeasurementInput({ label, unit }: { label: string, unit: string }) {
           type="number" 
           step="0.1"
           placeholder="0.0" 
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
           className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 text-secondary font-mono focus:border-primary outline-none transition-colors"
         />
         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-medium text-text-muted">{unit}</span>
