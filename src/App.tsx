@@ -5,7 +5,7 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { supabase } from "./lib/supabase";
+import { supabase, supabaseUrl, supabaseAnonKey } from "./lib/supabase";
 import { Layout } from "./components/Layout";
 import { Dashboard } from "./pages/Dashboard";
 import { Hoje } from "./pages/Hoje";
@@ -15,13 +15,21 @@ import { Alma } from "./pages/Alma";
 import { Agencia } from "./pages/Agencia";
 import { Metas } from "./pages/Metas";
 import { Auth } from "./components/Auth";
+import { SetupRequired } from "./components/SetupRequired";
 import { Session } from "@supabase/supabase-js";
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const isConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
   useEffect(() => {
+    if (!isConfigured) {
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
@@ -34,7 +42,11 @@ export default function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isConfigured]);
+
+  if (!isConfigured) {
+    return <SetupRequired />;
+  }
 
   if (loading) {
     return (
