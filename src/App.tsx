@@ -17,6 +17,7 @@ import { Metas } from "./pages/Metas";
 import { Auth } from "./components/Auth";
 import { SetupRequired } from "./components/SetupRequired";
 import { Session } from "@supabase/supabase-js";
+import { seedWesleyData } from "./lib/seed";
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -32,6 +33,9 @@ export default function App() {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session?.user?.email === 'wesley@system.com') {
+        seedWesleyData(session.user.id);
+      }
       setLoading(false);
     });
 
@@ -39,6 +43,9 @@ export default function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user?.email === 'wesley@system.com') {
+        seedWesleyData(session.user.id);
+      }
     });
 
     return () => subscription.unsubscribe();

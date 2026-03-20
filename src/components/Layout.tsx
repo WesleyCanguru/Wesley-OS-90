@@ -28,6 +28,7 @@ const navItems = [
 
 export function Layout() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [userInitials, setUserInitials] = useState("??");
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -37,6 +38,17 @@ export function Layout() {
   };
 
   useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata?.display_name) {
+        const name = user.user_metadata.display_name;
+        setUserInitials(name.substring(0, 2).toUpperCase());
+      } else if (user?.email) {
+        setUserInitials(user.email.substring(0, 2).toUpperCase());
+      }
+    };
+    getUser();
+
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
@@ -158,7 +170,7 @@ export function Layout() {
             <div className="text-xs font-serif font-bold text-primary">Ciclo 1</div>
           </div>
           <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs">
-            JD
+            {userInitials}
           </div>
         </div>
       </header>
