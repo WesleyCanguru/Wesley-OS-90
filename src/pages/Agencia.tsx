@@ -1,4 +1,4 @@
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { 
   Briefcase, 
   TrendingUp, 
@@ -15,27 +15,47 @@ import {
   Plus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// Dados simulados da Agência
-const initialAgencyMetrics = {
-  mrr: 12500,
-  spot: 2900,
-  ticketMedio: 2500,
-  meta90Dias: 40000,
-  faturadoCiclo: 15400,
-};
-
-const initialClients = [
-  { name: "Tech Solutions", type: "Recorrente", value: 3500, dueDate: "10/03", status: "Pago" },
-  { name: "Lanchonete do Bairro", type: "Spot", value: 1200, dueDate: "15/03", status: "Pago" },
-  { name: "Imobiliária Silva", type: "Recorrente", value: 2500, dueDate: "20/03", status: "Pendente" },
-  { name: "Clínica Odonto", type: "Recorrente", value: 4000, dueDate: "05/03", status: "Atrasado" },
-  { name: "E-commerce Modas", type: "Spot", value: 1700, dueDate: "25/03", status: "Pendente" },
-];
+import { useUser } from "@/hooks/useUser";
 
 export function Agencia() {
-  const [clients, setClients] = useState(initialClients);
-  const [metrics, setMetrics] = useState(initialAgencyMetrics);
+  const user = useUser();
+  const [clients, setClients] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState({
+    mrr: 0,
+    spot: 0,
+    ticketMedio: 2500,
+    meta90Dias: 40000,
+    faturadoCiclo: 0,
+  });
+
+  useEffect(() => {
+    if (user?.name === 'Wesley') {
+      setMetrics({
+        mrr: 12500,
+        spot: 2900,
+        ticketMedio: 2500,
+        meta90Dias: 40000,
+        faturadoCiclo: 15400,
+      });
+      setClients([
+        { name: "Tech Solutions", type: "Recorrente", value: 3500, dueDate: "10/03", status: "Pago" },
+        { name: "Lanchonete do Bairro", type: "Spot", value: 1200, dueDate: "15/03", status: "Pago" },
+        { name: "Imobiliária Silva", type: "Recorrente", value: 2500, dueDate: "20/03", status: "Pendente" },
+        { name: "Clínica Odonto", type: "Recorrente", value: 4000, dueDate: "05/03", status: "Atrasado" },
+        { name: "E-commerce Modas", type: "Spot", value: 1700, dueDate: "25/03", status: "Pendente" },
+      ]);
+    } else {
+      setMetrics({
+        mrr: 0,
+        spot: 0,
+        ticketMedio: 0,
+        meta90Dias: 40000,
+        faturadoCiclo: 0,
+      });
+      setClients([]);
+    }
+  }, [user]);
+
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
 

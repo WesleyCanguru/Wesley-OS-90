@@ -25,8 +25,10 @@ import {
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/Modal";
 import { supabase } from "@/lib/supabase";
+import { useUser } from "@/hooks/useUser";
 
 export function Corpo() {
+  const user = useUser();
   const [loading, setLoading] = useState(true);
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [isMeasurementsModalOpen, setIsMeasurementsModalOpen] = useState(false);
@@ -40,21 +42,24 @@ export function Corpo() {
   
   const [newWeight, setNewWeight] = useState("");
   const [newFoodAmount, setNewFoodAmount] = useState("");
+  const [newProtein, setNewProtein] = useState("");
+  const [newCarbs, setNewCarbs] = useState("");
+  const [newFats, setNewFats] = useState("");
 
   useEffect(() => {
-    fetchBodyData();
-  }, []);
+    if (user) {
+      fetchBodyData();
+    }
+  }, [user]);
 
   const fetchBodyData = async () => {
+    if (!user) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       // 1. Fetch Weight History
       const { data: stats, error: statsError } = await supabase
         .from('body_stats')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_name', user.name)
         .order('created_at', { ascending: true });
 
       if (stats && stats.length > 0) {
@@ -72,7 +77,7 @@ export function Corpo() {
       const { data: foods, error: foodsError } = await supabase
         .from('food_logs')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_name', user.name)
         .gte('created_at', `${today}T00:00:00Z`);
 
       if (foods) {
@@ -86,15 +91,12 @@ export function Corpo() {
   };
 
   const handleSaveWeight = async () => {
-    if (!newWeight) return;
+    if (!newWeight || !user) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
       const { error } = await supabase
         .from('body_stats')
         .insert([{
-          user_id: user.id,
+          user_name: user.name,
           weight: parseFloat(newWeight),
           measurements: measurements // Keep existing measurements
         }]);
@@ -111,15 +113,12 @@ export function Corpo() {
   };
 
   const handleSaveFood = async () => {
-    if (!newFoodAmount) return;
+    if (!newFoodAmount || !user) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
       const { error } = await supabase
         .from('food_logs')
         .insert([{
-          user_id: user.id,
+          user_name: user.name,
           meal_type: selectedMacro,
           calories: selectedMacro === 'Calorias' ? parseInt(newFoodAmount) : 0,
           amount: selectedMacro !== 'Calorias' ? parseFloat(newFoodAmount) : 0,
@@ -426,10 +425,9 @@ export function Corpo() {
           </div>
           <button 
             onClick={async () => {
+              if (!user) return;
               try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) throw new Error("Usuário não autenticado");
-                await supabase.from('body_stats').insert([{ user_id: user.id, weight: weight, measurements: measurements }]);
+                await supabase.from('body_stats').insert([{ user_name: user.name, weight: weight, measurements: measurements }]);
                 alert("Medidas salvas com sucesso!");
                 setIsMeasurementsModalOpen(false);
                 fetchBodyData();

@@ -1,12 +1,12 @@
 import { supabase } from './supabase';
 
-export const seedWesleyData = async (userId: string) => {
+export const seedWesleyData = async (userName: string = 'Wesley') => {
   try {
     // Verifica se já existem dados para evitar duplicidade
     const { data: existingCheckins, error: checkError } = await supabase
       .from('daily_checkins')
       .select('id')
-      .eq('user_id', userId)
+      .eq('user_name', userName)
       .limit(1);
 
     if (checkError) {
@@ -24,7 +24,7 @@ export const seedWesleyData = async (userId: string) => {
     // 1. Metas (Goals)
     const goals = [
       { 
-        user_id: userId, 
+        user_name: userName, 
         title: "Reduzir BF para 12%", 
         category: "Corpo", 
         target_value: 12, 
@@ -34,7 +34,7 @@ export const seedWesleyData = async (userId: string) => {
         inverse: true 
       },
       { 
-        user_id: userId, 
+        user_name: userName, 
         title: "Correr 5km sub 25min", 
         category: "Corpo", 
         target_value: 24.5, 
@@ -44,7 +44,7 @@ export const seedWesleyData = async (userId: string) => {
         inverse: true 
       },
       { 
-        user_id: userId, 
+        user_name: userName, 
         title: "Ler 3 livros de negócios", 
         category: "Alma", 
         target_value: 3, 
@@ -53,7 +53,7 @@ export const seedWesleyData = async (userId: string) => {
         unit: " livros" 
       },
       { 
-        user_id: userId, 
+        user_name: userName, 
         title: "Faturar R$ 40k no ciclo", 
         category: "Trabalho", 
         target_value: 40, 
@@ -73,7 +73,7 @@ export const seedWesleyData = async (userId: string) => {
       const date = new Date();
       date.setDate(now.getDate() - i);
       bodyStats.push({
-        user_id: userId,
+        user_name: userName,
         date: date.toISOString().split('T')[0],
         weight: 85 - (i * 0.2) + (Math.random() * 0.5),
         body_fat: 18 - (i * 0.1),
@@ -85,10 +85,10 @@ export const seedWesleyData = async (userId: string) => {
 
     // 3. Logs de Comida (Food Logs) - Para hoje
     const foodLogs = [
-      { user_id: userId, name: "Ovos Mexidos (3 unidades)", calories: 210, protein: 18, carbs: 2, fat: 15 },
-      { user_id: userId, name: "Frango Grelhado (200g)", calories: 330, protein: 62, carbs: 0, fat: 7 },
-      { user_id: userId, name: "Arroz Integral (150g)", calories: 165, protein: 4, carbs: 35, fat: 1 },
-      { user_id: userId, name: "Whey Protein", calories: 120, protein: 24, carbs: 3, fat: 2 }
+      { user_name: userName, name: "Ovos Mexidos (3 unidades)", calories: 210, protein: 18, carbs: 2, fat: 15 },
+      { user_name: userName, name: "Frango Grelhado (200g)", calories: 330, protein: 62, carbs: 0, fat: 7 },
+      { user_name: userName, name: "Arroz Integral (150g)", calories: 165, protein: 4, carbs: 35, fat: 1 },
+      { user_name: userName, name: "Whey Protein", calories: 120, protein: 24, carbs: 3, fat: 2 }
     ];
     const { error: foodError } = await supabase.from('food_logs').insert(foodLogs);
     if (foodError) throw foodError;
@@ -99,7 +99,7 @@ export const seedWesleyData = async (userId: string) => {
       const date = new Date();
       date.setDate(now.getDate() - i);
       checkins.push({
-        user_id: userId,
+        user_name: userName,
         date: date.toISOString().split('T')[0],
         energy: 4,
         mood: 5,

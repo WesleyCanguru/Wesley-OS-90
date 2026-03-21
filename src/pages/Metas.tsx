@@ -16,8 +16,10 @@ import {
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/Modal";
 import { supabase } from "@/lib/supabase";
+import { useUser } from "@/hooks/useUser";
 
 export function Metas() {
+  const user = useUser();
   const currentDay = 18;
   const totalDays = 90;
   const cycleProgress = Math.round((currentDay / totalDays) * 100);
@@ -34,18 +36,18 @@ export function Metas() {
   });
 
   useEffect(() => {
-    fetchGoals();
-  }, []);
+    if (user) {
+      fetchGoals();
+    }
+  }, [user]);
 
   const fetchGoals = async () => {
+    if (!user) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data, error } = await supabase
         .from('goals')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_name', user.name);
 
       if (data) {
         const grouped = data.reduce((acc: any, goal: any) => {
@@ -72,15 +74,12 @@ export function Metas() {
   };
 
   const handleAddGoal = async () => {
-    if (!newGoal.title || !newGoal.target_value) return;
+    if (!newGoal.title || !newGoal.target_value || !user) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
       const { error } = await supabase
         .from('goals')
         .insert([{
-          user_id: user.id,
+          user_name: user.name,
           title: newGoal.title,
           category: newGoal.category,
           target_value: parseFloat(newGoal.target_value),

@@ -20,36 +20,22 @@ import { Session } from "@supabase/supabase-js";
 import { seedWesleyData } from "./lib/seed";
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<{ name: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const isConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
   useEffect(() => {
-    if (!isConfigured) {
-      setLoading(false);
-      return;
+    const savedUser = localStorage.getItem('w90_user');
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      setUser(parsedUser);
+      if (parsedUser.name === 'Wesley') {
+        seedWesleyData();
+      }
     }
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user?.email === 'wesley@system.com') {
-        seedWesleyData(session.user.id);
-      }
-      setLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user?.email === 'wesley@system.com') {
-        seedWesleyData(session.user.id);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [isConfigured]);
+    setLoading(false);
+  }, []);
 
   if (!isConfigured) {
     return <SetupRequired />;
@@ -63,14 +49,14 @@ export default function App() {
     );
   }
 
-  if (!session) {
-    return <Auth />;
+  if (!user) {
+    return <Auth onLogin={setUser} />;
   }
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout />}>
+        <Route path="/" element={<Layout user={user} onLogout={() => setUser(null)} />}>
           <Route index element={<Dashboard />} />
           <Route path="hoje" element={<Hoje />} />
           <Route path="ontem" element={<Ontem />} />

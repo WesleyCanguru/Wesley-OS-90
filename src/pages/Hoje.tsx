@@ -3,9 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { Check, X, Battery, Smile, Droplets, Dumbbell, Utensils, Target, BookOpen, Trophy, ArrowRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { useUser } from "@/hooks/useUser";
 
 export function Hoje() {
   const navigate = useNavigate();
+  const user = useUser();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [energy, setEnergy] = useState(3);
@@ -22,12 +24,13 @@ export function Hoje() {
   ]);
 
   useEffect(() => {
-    fetchTodayCheckin();
-  }, []);
+    if (user) {
+      fetchTodayCheckin();
+    }
+  }, [user]);
 
   const fetchTodayCheckin = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const today = new Date().toISOString().split('T')[0];
@@ -35,20 +38,19 @@ export function Hoje() {
       const { data, error } = await supabase
         .from('daily_checkins')
         .select('*')
-        .eq('user_id', user.id)
-        .gte('created_at', `${today}T00:00:00Z`)
-        .lte('created_at', `${today}T23:59:59Z`)
+        .eq('user_name', user.name)
+        .eq('date', today)
         .single();
 
       if (data) {
-        setEnergy(data.energy_level);
-        setMood(data.mood_level || 3); // Assuming mood_level was added or using mood as text
-        setWater(data.water_intake);
+        setEnergy(data.energy || 3);
+        setMood(data.mood || 3);
+        setWater(data.water_ml / 1000); // Convert ml to L
         if (data.habits) {
           setHabits(data.habits);
         }
-        // Note: victory and improvement might need a separate table or columns in daily_checkins
-        // For now, let's assume they are in the same table if we update the schema or just save them in a jsonb field
+        setVictory(data.victory || "");
+        setImprovement(data.improvement || "");
       }
     } catch (error) {
       console.error("Erro ao buscar check-in:", error);
@@ -62,31 +64,28 @@ export function Hoje() {
   };
 
   const handleSave = async () => {
+    if (!user) return;
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
       const today = new Date().toISOString().split('T')[0];
 
       const checkinData = {
-        user_id: user.id,
-        energy_level: energy,
-        mood_level: mood, // We'll need to ensure this column exists or use 'mood' text
-        water_intake: water,
+        user_name: user.name,
+        date: today,
+        energy: energy,
+        mood: mood,
+        water_ml: water * 1000, // Convert L to ml
         habits: habits,
         victory: victory,
         improvement: improvement,
-        updated_at: new Date().toISOString()
       };
 
       // Check if exists to update or insert
       const { data: existing } = await supabase
         .from('daily_checkins')
         .select('id')
-        .eq('user_id', user.id)
-        .gte('created_at', `${today}T00:00:00Z`)
-        .lte('created_at', `${today}T23:59:59Z`)
+        .eq('user_name', user.name)
+        .eq('date', today)
         .single();
 
       if (existing) {

@@ -1,106 +1,63 @@
 import React, { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { Button } from './Button';
-import { LogIn, User } from 'lucide-react';
+import { KeyRound, LogIn } from 'lucide-react';
 
-export const Auth = () => {
-  const [loading, setLoading] = useState(false);
-  const [name, setName] = useState('');
+export const Auth = ({ onLogin }: { onLogin: (user: { name: string }) => void }) => {
+  const [key, setKey] = useState('');
 
-  const handleAccess = async (e: React.FormEvent) => {
+  const handleAccess = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanName = name.trim().toLowerCase();
+    const accessKey = key.trim();
     
-    if (cleanName !== 'wesley' && cleanName !== 'sarah') {
-      alert('Acesso restrito. Por favor, use "Wesley" ou "Sarah".');
-      return;
+    if (accessKey === 'Wesley123') {
+      const user = { name: 'Wesley' };
+      localStorage.setItem('w90_user', JSON.stringify(user));
+      onLogin(user);
+    } else if (accessKey === 'Sarah123') {
+      const user = { name: 'Sarah' };
+      localStorage.setItem('w90_user', JSON.stringify(user));
+      onLogin(user);
+    } else {
+      alert('Chave de acesso inválida!');
     }
-
-    setLoading(true);
-    const email = `${cleanName}@system.com`;
-    const password = `acesso_${cleanName}_123`;
-
-    // 1. Tenta fazer login
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ 
-      email, 
-      password 
-    });
-
-    if (signInError) {
-      // 2. Se falhar, tenta cadastrar (primeiro acesso)
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ 
-        email, 
-        password,
-        options: {
-          data: {
-            display_name: cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
-          }
-        }
-      });
-      
-      if (signUpError) {
-        if (signUpError.message.includes('Database error')) {
-          alert('Erro de Banco de Dados: Verifique se você executou o SQL de criação das tabelas no painel do Supabase.');
-        } else {
-          alert('Erro: ' + signUpError.message);
-        }
-      } else if (signUpData.session) {
-        // Logado automaticamente após cadastro (se "Confirm Email" estiver OFF)
-        console.log('Usuário criado e logado com sucesso');
-      } else {
-        alert('Acesso criado! Se o login não ocorrer automaticamente, verifique se a opção "Confirm Email" está DESATIVADA no seu painel do Supabase (Authentication > Providers > Email).');
-      }
-    }
-    
-    setLoading(false);
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-100 p-4">
-      <div className="bg-white p-8 rounded-3xl shadow-sm w-full max-w-md border border-neutral-200">
-        <div className="flex justify-center mb-6">
-          <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
-            <User className="w-8 h-8" />
+      <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-neutral-200">
+        <div className="flex justify-center mb-8">
+          <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center text-emerald-600 shadow-inner">
+            <KeyRound className="w-10 h-10" />
           </div>
         </div>
         
-        <h1 className="text-2xl font-serif font-bold text-neutral-900 mb-2 text-center">Bem-vindo</h1>
-        <p className="text-neutral-500 text-center mb-8 text-sm">Digite seu nome para acessar o dashboard</p>
+        <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2 text-center">W90 Challenge</h1>
+        <p className="text-neutral-500 text-center mb-10 text-sm">Digite sua chave de acesso pessoal</p>
         
-        <form onSubmit={handleAccess} className="space-y-4">
+        <form onSubmit={handleAccess} className="space-y-6">
           <div>
-            <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2 ml-1">Seu Nome</label>
+            <label className="block text-xs font-bold text-neutral-400 uppercase tracking-[0.2em] mb-3 ml-1">Chave de Acesso</label>
             <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-5 py-3 rounded-2xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-lg font-medium"
-              placeholder="Ex: Wesley ou Sarah"
+              type="password"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              className="w-full px-6 py-4 rounded-2xl border border-neutral-200 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all text-center text-2xl tracking-[0.3em] font-mono"
+              placeholder="••••••••"
               required
             />
           </div>
           
           <Button
             type="submit"
-            disabled={loading}
-            className="w-full bg-emerald-600 text-white hover:bg-emerald-700 py-6 rounded-2xl text-lg font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98]"
+            className="w-full bg-emerald-600 text-white hover:bg-emerald-700 py-7 rounded-2xl text-xl font-bold shadow-xl shadow-emerald-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
           >
-            {loading ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Acessando...
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <LogIn className="w-5 h-5" />
-                Acessar Dashboard
-              </div>
-            )}
+            <LogIn className="w-6 h-6" />
+            Entrar no Sistema
           </Button>
         </form>
         
-        <div className="mt-8 pt-6 border-t border-neutral-100 text-center">
-          <p className="text-xs text-neutral-400">Acesso restrito para Wesley e Sarah</p>
+        <div className="mt-10 pt-8 border-t border-neutral-100 text-center">
+          <p className="text-xs text-neutral-400 font-medium">Acesso restrito e privado</p>
         </div>
       </div>
     </div>

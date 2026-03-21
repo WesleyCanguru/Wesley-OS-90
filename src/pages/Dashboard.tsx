@@ -1,23 +1,90 @@
 import { useNavigate } from "react-router-dom";
-import { Activity, Brain, TrendingUp, AlertTriangle, ChevronRight, Zap, CalendarCheck } from "lucide-react";
+import { Activity, Brain, TrendingUp, AlertTriangle, ChevronRight, Zap, CalendarCheck, Loader2 } from "lucide-react";
+import { useUser } from "@/hooks/useUser";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const user = useUser();
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    corpo: 0,
+    alma: 0,
+    peso: "0 kg",
+    dieta: "0%",
+    energia: "0",
+    disciplina: "0"
+  });
+
+  useEffect(() => {
+    if (user) {
+      fetchDashboardData();
+    }
+  }, [user]);
+
+  const fetchDashboardData = async () => {
+    if (!user) return;
+    
+    try {
+      // Se for a Sarah e não tiver dados, mantemos os zeros
+      // Se for o Wesley, os dados de semente já estarão no banco
+      
+      const { data: bodyData } = await supabase
+        .from('body_stats')
+        .select('weight')
+        .eq('user_name', user.name)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const { data: checkinData } = await supabase
+        .from('daily_checkins')
+        .select('energy, habits')
+        .eq('user_name', user.name)
+        .order('date', { ascending: false })
+        .limit(7);
+
+      if (user.name === 'Wesley' || (bodyData && bodyData.length > 0)) {
+        const currentWeight = bodyData?.[0]?.weight || 0;
+        const avgEnergy = checkinData?.length 
+          ? (checkinData.reduce((acc, curr) => acc + (curr.energy || 0), 0) / checkinData.length).toFixed(1)
+          : "0";
+
+        setStats({
+          corpo: user.name === 'Wesley' ? 85 : 0,
+          alma: user.name === 'Wesley' ? 92 : 0,
+          peso: `${currentWeight} kg`,
+          dieta: user.name === 'Wesley' ? "90%" : "0%",
+          energia: avgEnergy,
+          disciplina: user.name === 'Wesley' ? "92" : "0"
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao carregar dashboard:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-10">
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-4xl md:text-5xl font-serif font-semibold tracking-tight text-primary mb-2">Visão Pessoal</h1>
+          <h1 className="text-4xl md:text-5xl font-serif font-semibold tracking-tight text-primary mb-2">Olá, {user?.name}</h1>
           <p className="text-text-muted text-lg">Seu progresso individual e hábitos.</p>
         </div>
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
           <button 
-            onClick={() => {
-              console.log("Navigating to /hoje");
-              navigate("/hoje");
-            }}
+            onClick={() => navigate("/hoje")}
             className="bg-primary text-white px-6 py-3 rounded-full font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 flex items-center gap-2 group"
           >
             <CalendarCheck className="w-5 h-5 group-hover:scale-110 transition-transform" />
@@ -34,23 +101,17 @@ export function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ScoreCard 
           title="Corpo" 
-          score={85} 
-          trend="+2%" 
+          score={stats.corpo} 
+          trend={user?.name === 'Wesley' ? "+2%" : ""} 
           icon={Activity} 
-          onClick={() => {
-            console.log("Navigating to /corpo");
-            navigate("/corpo");
-          }}
+          onClick={() => navigate("/corpo")}
         />
         <ScoreCard 
           title="Alma" 
-          score={92} 
-          trend="+5%" 
+          score={stats.alma} 
+          trend={user?.name === 'Wesley' ? "+5%" : ""} 
           icon={Brain} 
-          onClick={() => {
-            console.log("Navigating to /alma");
-            navigate("/alma");
-          }}
+          onClick={() => navigate("/alma")}
         />
       </div>
 
@@ -66,9 +127,9 @@ export function Dashboard() {
             <h2 className="font-serif text-2xl font-semibold">Insight Pessoal</h2>
           </div>
           <p className="text-white/80 leading-relaxed text-lg relative z-10 font-light">
-            Sua consistência de leitura matinal atingiu uma sequência de <span className="text-white font-mono font-medium">5 dias</span>. 
-            No entanto, seu sono foi <span className="text-white font-mono font-medium">15%</span> menor que a meta ontem. 
-            Priorize o descanso hoje para manter o pilar Alma em alta.
+            {user?.name === 'Wesley' 
+              ? "Sua consistência de leitura matinal atingiu uma sequência de 5 dias. Priorize o descanso hoje para manter o pilar Alma em alta."
+              : "Comece seu desafio hoje! Registre seu primeiro check-in para gerar insights personalizados sobre sua rotina."}
           </p>
         </div>
 
@@ -81,14 +142,23 @@ export function Dashboard() {
             <h2 className="font-serif text-2xl font-semibold text-secondary">Atenção</h2>
           </div>
           <ul className="space-y-4">
-            <li className="flex items-start gap-3">
-              <div className="w-2 h-2 rounded-full bg-red-400 mt-2 flex-shrink-0" />
-              <span className="text-text-muted leading-snug">Faltam 300ml de água para a meta de ontem.</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <div className="w-2 h-2 rounded-full bg-yellow-400 mt-2 flex-shrink-0" />
-              <span className="text-text-muted leading-snug">Você não registrou a foto de progresso desta semana.</span>
-            </li>
+            {user?.name === 'Wesley' ? (
+              <>
+                <li className="flex items-start gap-3">
+                  <div className="w-2 h-2 rounded-full bg-red-400 mt-2 flex-shrink-0" />
+                  <span className="text-text-muted leading-snug">Faltam 300ml de água para a meta de ontem.</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <div className="w-2 h-2 rounded-full bg-yellow-400 mt-2 flex-shrink-0" />
+                  <span className="text-text-muted leading-snug">Você não registrou a foto de progresso desta semana.</span>
+                </li>
+              </>
+            ) : (
+              <li className="flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 mt-2 flex-shrink-0" />
+                <span className="text-text-muted leading-snug">Tudo em dia! Aguardando seus registros de hoje.</span>
+              </li>
+            )}
           </ul>
         </div>
       </div>
@@ -97,10 +167,10 @@ export function Dashboard() {
       <div>
         <h2 className="text-2xl font-serif font-semibold text-primary mb-6">Desempenho Recente</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard label="Peso Atual" value="82.4 kg" subtext="Tendência: Baixa" />
-          <MetricCard label="Aderência Dieta" value="90%" subtext="Últimos 7 dias" />
-          <MetricCard label="Média Energia" value="4.2" subtext="Escala 1-5" />
-          <MetricCard label="Score Disciplina" value="92" subtext="Excelente" />
+          <MetricCard label="Peso Atual" value={stats.peso} subtext={user?.name === 'Wesley' ? "Tendência: Baixa" : ""} />
+          <MetricCard label="Aderência Dieta" value={stats.dieta} subtext={user?.name === 'Wesley' ? "Últimos 7 dias" : ""} />
+          <MetricCard label="Média Energia" value={stats.energia} subtext="Escala 1-5" />
+          <MetricCard label="Score Disciplina" value={stats.disciplina} subtext={user?.name === 'Wesley' ? "Excelente" : ""} />
         </div>
       </div>
     </div>

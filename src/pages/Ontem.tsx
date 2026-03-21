@@ -16,9 +16,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { useUser } from "@/hooks/useUser";
 
 export function Ontem() {
   const navigate = useNavigate();
+  const user = useUser();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -40,18 +42,15 @@ export function Ontem() {
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !user) return;
 
     setStep(2); // Vai para o estado de "Analisando"
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
       // 1. Upload para o Storage
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      const fileName = `${user.name}/${Date.now()}.${fileExt}`;
       const filePath = `progress-photos/${fileName}`;
 
       const { error: uploadError, data } = await supabase.storage
@@ -67,7 +66,6 @@ export function Ontem() {
       setPhotoUrl(publicUrl);
 
       // 2. Simula o tempo de processamento de uma IA lendo a imagem (OCR)
-      // No futuro, aqui chamaria uma Edge Function ou API externa para OCR
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       setFitnessData({
@@ -88,23 +86,25 @@ export function Ontem() {
   };
 
   const handleFinish = async () => {
+    if (!user) return;
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split('T')[0];
 
       const closureData = {
-        user_id: user.id,
-        review: observacoes,
+        user_name: user.name,
+        date: yesterdayStr,
+        notes: observacoes,
         photo_url: photoUrl,
-        fitness_data: fitnessData, // Assuming jsonb or columns added
+        active_calories: parseInt(fitnessData.caloriasAtivas) || 0,
+        total_calories: parseInt(fitnessData.caloriasTotais) || 0,
+        exercise_minutes: parseInt(fitnessData.minutosExercicio) || 0,
+        stand_hours: parseInt(fitnessData.horasEmPe) || 0,
+        steps: parseInt(fitnessData.passos) || 0,
         workout_done: treinoFeito,
         diet_adherence: dietaAderente,
-        created_at: `${yesterdayStr}T23:59:59Z`
       };
 
       const { error } = await supabase

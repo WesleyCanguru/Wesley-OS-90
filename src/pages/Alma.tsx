@@ -8,7 +8,8 @@ import {
   Flame,
   CheckCircle2,
   Circle,
-  Quote
+  Quote,
+  Loader2
 } from "lucide-react";
 import { 
   AreaChart, 
@@ -20,27 +21,61 @@ import {
   ResponsiveContainer 
 } from "recharts";
 import { cn } from "@/lib/utils";
-
-// Dados simulados para o gráfico de Energia vs Humor
-const energyMoodData = [
-  { day: "12/03", energia: 4, humor: 4 },
-  { day: "13/03", energia: 3, humor: 4 },
-  { day: "14/03", energia: 5, humor: 5 },
-  { day: "15/03", energia: 4, humor: 3 },
-  { day: "16/03", energia: 2, humor: 3 },
-  { day: "17/03", energia: 4, humor: 4 },
-  { day: "18/03", energia: 4, humor: 5 },
-];
-
-// Dados simulados para o tracker de hábitos (Últimos 7 dias)
-const habitsTracker = [
-  { name: "Rotina Matinal", icon: Sunrise, days: [true, true, true, false, true, true, true] },
-  { name: "Leitura (15m)", icon: BookOpen, days: [true, true, true, true, true, false, true] },
-  { name: "Espiritualidade", icon: Brain, days: [false, true, true, true, true, true, true] },
-  { name: "Organização", icon: CalendarDays, days: [true, true, false, true, true, true, true] },
-];
+import { useUser } from "@/hooks/useUser";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export function Alma() {
+  const user = useUser();
+  const [loading, setLoading] = useState(true);
+  const [energyMoodData, setEnergyMoodData] = useState<any[]>([]);
+  const [habitsTracker, setHabitsTracker] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      fetchAlmaData();
+    }
+  }, [user]);
+
+  const fetchAlmaData = async () => {
+    if (!user) return;
+
+    if (user.name === 'Wesley') {
+      setEnergyMoodData([
+        { day: "12/03", energia: 4, humor: 4 },
+        { day: "13/03", energia: 3, humor: 4 },
+        { day: "14/03", energia: 5, humor: 5 },
+        { day: "15/03", energia: 4, humor: 3 },
+        { day: "16/03", energia: 2, humor: 3 },
+        { day: "17/03", energia: 4, humor: 4 },
+        { day: "18/03", energia: 4, humor: 5 },
+      ]);
+      setHabitsTracker([
+        { name: "Rotina Matinal", icon: Sunrise, days: [true, true, true, false, true, true, true] },
+        { name: "Leitura (15m)", icon: BookOpen, days: [true, true, true, true, true, false, true] },
+        { name: "Espiritualidade", icon: Brain, days: [false, true, true, true, true, true, true] },
+        { name: "Organização", icon: CalendarDays, days: [true, true, false, true, true, true, true] },
+      ]);
+    } else {
+      setEnergyMoodData([]);
+      setHabitsTracker([
+        { name: "Rotina Matinal", icon: Sunrise, days: [false, false, false, false, false, false, false] },
+        { name: "Leitura (15m)", icon: BookOpen, days: [false, false, false, false, false, false, false] },
+        { name: "Espiritualidade", icon: Brain, days: [false, false, false, false, false, false, false] },
+        { name: "Organização", icon: CalendarDays, days: [false, false, false, false, false, false, false] },
+      ]);
+    }
+    setLoading(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-10 animate-in fade-in duration-500">
       {/* Header */}
@@ -52,17 +87,17 @@ export function Alma() {
         <div className="flex gap-3">
           <div className="bg-surface border border-surface-border px-5 py-2.5 rounded-full flex items-center gap-3 shadow-sm">
             <Flame className="w-5 h-5 text-orange-500" />
-            <span className="font-medium text-secondary">Sequência: <span className="font-mono font-bold text-primary">12 Dias</span></span>
+            <span className="font-medium text-secondary">Sequência: <span className="font-mono font-bold text-primary">{user?.name === 'Wesley' ? '12 Dias' : '0 Dias'}</span></span>
           </div>
         </div>
       </header>
 
       {/* Top Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard label="Score Disciplina" value="92" subtext="Excelente" icon={CheckCircle2} color="text-emerald-600" />
-        <MetricCard label="Score Constância" value="88" subtext="+5% vs semana ant." icon={CalendarDays} color="text-primary" />
-        <MetricCard label="Média Energia" value="3.8" subtext="Meta: > 4.0" icon={Zap} color="text-yellow-500" />
-        <MetricCard label="Média Humor" value="4.1" subtext="Estável" icon={Smile} color="text-blue-500" />
+        <MetricCard label="Score Disciplina" value={user?.name === 'Wesley' ? "92" : "0"} subtext={user?.name === 'Wesley' ? "Excelente" : ""} icon={CheckCircle2} color="text-emerald-600" />
+        <MetricCard label="Score Constância" value={user?.name === 'Wesley' ? "88" : "0"} subtext={user?.name === 'Wesley' ? "+5% vs semana ant." : ""} icon={CalendarDays} color="text-primary" />
+        <MetricCard label="Média Energia" value={user?.name === 'Wesley' ? "3.8" : "0"} subtext="Meta: > 4.0" icon={Zap} color="text-yellow-500" />
+        <MetricCard label="Média Humor" value={user?.name === 'Wesley' ? "4.1" : "0"} subtext="Estável" icon={Smile} color="text-blue-500" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

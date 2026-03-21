@@ -26,29 +26,19 @@ const navItems = [
   { name: "Metas", path: "/metas", icon: Target },
 ];
 
-export function Layout() {
+export function Layout({ user, onLogout }: { user: { name: string }, onLogout: () => void }) {
   const [isScrolled, setIsScrolled] = useState(false);
-  const [userInitials, setUserInitials] = useState("??");
+  const [userInitials, setUserInitials] = useState(user.name.substring(0, 2).toUpperCase());
   const location = useLocation();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem('w90_user');
+    onLogout();
     navigate("/");
   };
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.user_metadata?.display_name) {
-        const name = user.user_metadata.display_name;
-        setUserInitials(name.substring(0, 2).toUpperCase());
-      } else if (user?.email) {
-        setUserInitials(user.email.substring(0, 2).toUpperCase());
-      }
-    };
-    getUser();
-
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
