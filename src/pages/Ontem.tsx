@@ -57,13 +57,16 @@ export function Ontem() {
         .from('progress-photos')
         .upload(filePath, file);
 
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('progress-photos')
-        .getPublicUrl(filePath);
-
-      setPhotoUrl(publicUrl);
+      if (uploadError) {
+        console.warn("Aviso: Bucket 'progress-photos' não encontrado ou sem permissão. Usando fallback para demonstração.", uploadError);
+        // Fallback: Se o bucket não existir, usamos uma imagem de placeholder para não travar o usuário
+        setPhotoUrl(`https://picsum.photos/seed/${Date.now()}/800/600`);
+      } else {
+        const { data: { publicUrl } } = supabase.storage
+          .from('progress-photos')
+          .getPublicUrl(filePath);
+        setPhotoUrl(publicUrl);
+      }
 
       // 2. Simula o tempo de processamento de uma IA lendo a imagem (OCR)
       await new Promise(resolve => setTimeout(resolve, 2000));

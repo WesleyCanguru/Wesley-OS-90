@@ -18,12 +18,12 @@ import { Button } from "./Button";
 
 const navItems = [
   { name: "Início", path: "/", icon: LayoutDashboard },
-  { name: "Agência", path: "/agencia", icon: Briefcase },
   { name: "Check-in", path: "/hoje", icon: CalendarCheck },
-  { name: "Reflexão", path: "/ontem", icon: History },
   { name: "Corpo", path: "/corpo", icon: Activity },
   { name: "Alma", path: "/alma", icon: Brain },
   { name: "Metas", path: "/metas", icon: Target },
+  { name: "Apple Fitness", path: "/ontem", icon: History },
+  { name: "Agência", path: "/agencia", icon: Briefcase },
 ];
 
 export function Layout({ user, onLogout }: { user: { name: string }, onLogout: () => void }) {
@@ -129,7 +129,7 @@ export function Layout({ user, onLogout }: { user: { name: string }, onLogout: (
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-6 left-4 right-4 z-50 bg-surface/80 backdrop-blur-xl border border-surface-border shadow-2xl rounded-3xl px-2 py-2 flex items-center justify-around">
-        {navItems.filter(item => ["Início", "Agência", "Check-in", "Corpo", "Metas"].includes(item.name)).map((item) => (
+        {navItems.filter(item => ["Início", "Agência", "Check-in", "Corpo", "Apple Fitness"].includes(item.name)).map((item) => (
           <NavLink
             key={item.path}
             to={item.path}

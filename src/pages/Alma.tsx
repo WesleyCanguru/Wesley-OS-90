@@ -58,12 +58,7 @@ export function Alma() {
       ]);
     } else {
       setEnergyMoodData([]);
-      setHabitsTracker([
-        { name: "Rotina Matinal", icon: Sunrise, days: [false, false, false, false, false, false, false] },
-        { name: "Leitura (15m)", icon: BookOpen, days: [false, false, false, false, false, false, false] },
-        { name: "Espiritualidade", icon: Brain, days: [false, false, false, false, false, false, false] },
-        { name: "Organização", icon: CalendarDays, days: [false, false, false, false, false, false, false] },
-      ]);
+      setHabitsTracker([]);
     }
     setLoading(false);
   };
@@ -124,31 +119,35 @@ export function Alma() {
 
               {/* Linhas de Hábitos */}
               <div className="space-y-4">
-                {habitsTracker.map((habit, idx) => (
-                  <div key={idx} className="flex items-center">
-                    <div className="w-40 flex-shrink-0 flex items-center gap-3">
-                      <div className="p-2 bg-background border border-surface-border rounded-lg">
-                        <habit.icon className="w-4 h-4 text-primary" />
-                      </div>
-                      <span className="font-medium text-sm text-secondary">{habit.name}</span>
-                    </div>
-                    <div className="flex-1 flex justify-between px-4">
-                      {habit.days.map((done, i) => (
-                        <div key={i} className="w-8 flex justify-center">
-                          {done ? (
-                            <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center shadow-sm">
-                              <CheckCircle2 className="w-4 h-4 text-white" />
-                            </div>
-                          ) : (
-                            <div className="w-6 h-6 rounded-md bg-background border border-surface-border flex items-center justify-center">
-                              <Circle className="w-3 h-3 text-surface-border" />
-                            </div>
-                          )}
+                {habitsTracker.length === 0 ? (
+                  <div className="text-center py-8 text-text-muted italic">Nenhum hábito rastreado ainda.</div>
+                ) : (
+                  habitsTracker.map((habit, idx) => (
+                    <div key={idx} className="flex items-center">
+                      <div className="w-40 flex-shrink-0 flex items-center gap-3">
+                        <div className="p-2 bg-background border border-surface-border rounded-lg">
+                          <habit.icon className="w-4 h-4 text-primary" />
                         </div>
-                      ))}
+                        <span className="font-medium text-sm text-secondary">{habit.name}</span>
+                      </div>
+                      <div className="flex-1 flex justify-between px-4">
+                        {habit.days.map((done: boolean, i: number) => (
+                          <div key={i} className="w-8 flex justify-center">
+                            {done ? (
+                              <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center shadow-sm">
+                                <CheckCircle2 className="w-4 h-4 text-white" />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 rounded-md bg-background border border-surface-border flex items-center justify-center">
+                                <Circle className="w-3 h-3 text-surface-border" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>

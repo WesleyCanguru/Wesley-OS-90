@@ -1,32 +1,56 @@
 import { useState, useEffect } from "react";
 import { 
   Target, 
-  Flag, 
   Calendar, 
   Activity, 
   Brain, 
   Briefcase, 
-  Trophy,
   Compass,
   CheckCircle2,
   Plus,
   Trash2,
-  Loader2
+  Edit2,
+  Loader2,
+  TableProperties,
+  LayoutDashboard,
+  Check,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/Modal";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/hooks/useUser";
 
+// Tipos para o Rastreador
+type Habit = {
+  id: string;
+  name: string;
+  frequency_per_week: number;
+  type: 'check' | 'numeric' | 'negative';
+  target_value: number;
+  unit: string;
+};
+
+type HabitLog = {
+  habit_id: string;
+  date: string;
+  value: number;
+  completed: boolean;
+};
+
 export function Metas() {
   const user = useUser();
   const currentDay = 18;
   const totalDays = 90;
   const cycleProgress = Math.round((currentDay / totalDays) * 100);
-  const [loading, setLoading] = useState(true);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [goals, setGoals] = useState<{ corpo: any[], alma: any[], trabalho: any[] }>({ corpo: [], alma: [], trabalho: [] });
   
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'macro' | 'tracker'>('macro');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  
+  // Dados Macro
+  const [goals, setGoals] = useState<{ corpo: any[], alma: any[], trabalho: any[] }>({ corpo: [], alma: [], trabalho: [] });
   const [newGoal, setNewGoal] = useState({
     title: "",
     category: "Corpo",
@@ -35,11 +59,34 @@ export function Metas() {
     start_value: ""
   });
 
+  // Dados Rastreador
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [weeklyLogs, setWeeklyLogs] = useState<Record<string, Record<string, HabitLog>>>({}); // habit_id -> date -> log
+  const [weekDates, setWeekDates] = useState<Date[]>([]);
+
   useEffect(() => {
     if (user) {
       fetchGoals();
+      fetchTrackerData();
     }
   }, [user]);
+
+  // Configura as datas da semana atual (Segunda a Domingo)
+  useEffect(() => {
+    const dates = [];
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Dom, 1 = Seg...
+    const diffToMonday = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Ajusta para Segunda
+    
+    const monday = new Date(today.setDate(diffToMonday));
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      dates.push(date);
+    }
+    setWeekDates(dates);
+  }, []);
 
   const fetchGoals = async () => {
     if (!user) return;
@@ -56,6 +103,7 @@ export function Metas() {
           acc[cat].push({
             id: goal.id,
             title: goal.title,
+            category: goal.category,
             current: goal.current_value,
             target: goal.target_value,
             unit: goal.unit,
@@ -73,29 +121,94 @@ export function Metas() {
     }
   };
 
+  const fetchTrackerData = async () => {
+    if (!user) return;
+    try {
+      // Busca Hábitos
+      const { data: habitsData, error: habitsError } = await supabase
+        .from('habits')
+        .select('*')
+        .eq('user_name', user.name)
+        .order('created_at', { ascending: true });
+
+      if (habitsError) throw habitsError;
+      setHabits(habitsData || []);
+
+      // Busca Logs dos últimos 7 dias (simplificado para pegar a semana atual)
+      const today = new Date();
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(today.getDate() - 7);
+      
+      const { data: logsData, error: logsError } = await supabase
+        .from('habit_logs')
+        .select('*')
+        .eq('user_name', user.name)
+        .gte('date', sevenDaysAgo.toISOString().split('T')[0]);
+
+      if (logsError) throw logsError;
+
+      // Organiza logs: { habit_id: { 'YYYY-MM-DD': log } }
+      const logsMap: Record<string, Record<string, HabitLog>> = {};
+      logsData?.forEach(log => {
+        if (!logsMap[log.habit_id]) logsMap[log.habit_id] = {};
+        logsMap[log.habit_id][log.date] = log;
+      });
+      setWeeklyLogs(logsMap);
+
+    } catch (error) {
+      console.error("Erro ao buscar dados do rastreador:", error);
+    }
+  };
+
   const handleAddGoal = async () => {
     if (!newGoal.title || !newGoal.target_value || !user) return;
     try {
-      const { error } = await supabase
-        .from('goals')
-        .insert([{
-          user_name: user.name,
-          title: newGoal.title,
-          category: newGoal.category,
-          target_value: parseFloat(newGoal.target_value),
-          current_value: parseFloat(newGoal.start_value || "0"),
-          start_value: parseFloat(newGoal.start_value || "0"),
-          unit: newGoal.unit
-        }]);
+      if (editingGoalId) {
+        const { error } = await supabase
+          .from('goals')
+          .update({
+            title: newGoal.title,
+            category: newGoal.category,
+            target_value: parseFloat(newGoal.target_value),
+            unit: newGoal.unit
+          })
+          .eq('id', editingGoalId);
 
-      if (error) throw error;
+        if (error) throw error;
+        setEditingGoalId(null);
+      } else {
+        const { error } = await supabase
+          .from('goals')
+          .insert([{
+            user_name: user.name,
+            title: newGoal.title,
+            category: newGoal.category,
+            target_value: parseFloat(newGoal.target_value),
+            current_value: parseFloat(newGoal.start_value || "0"),
+            start_value: parseFloat(newGoal.start_value || "0"),
+            unit: newGoal.unit
+          }]);
+
+        if (error) throw error;
+      }
       
       setNewGoal({ title: "", category: "Corpo", target_value: "", unit: "", start_value: "" });
       fetchGoals();
     } catch (error) {
-      console.error("Erro ao adicionar meta:", error);
-      alert("Erro ao adicionar meta.");
+      console.error("Erro ao salvar meta:", error);
+      alert("Erro ao salvar meta.");
     }
+  };
+
+  const handleEditGoalClick = (goal: any) => {
+    setEditingGoalId(goal.id);
+    setNewGoal({
+      title: goal.title,
+      category: goal.category || "Corpo", // Fallback if category is missing in the object
+      target_value: goal.target.toString(),
+      unit: goal.unit,
+      start_value: goal.start.toString()
+    });
   };
 
   const handleDeleteGoal = async (id: string) => {
@@ -113,18 +226,28 @@ export function Metas() {
     }
   };
 
-  const handleEditGoals = () => {
-    setIsEditModalOpen(true);
+  const getLogForDate = (habitId: string, date: Date) => {
+    // Ajuste de timezone
+    const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+    const dateStr = localDate.toISOString().split('T')[0];
+    return weeklyLogs[habitId]?.[dateStr];
   };
 
-  const handleViewGoal = (goal: any) => {
-    console.log(`Visualizando meta: ${goal.title}`);
-    alert(`Detalhes da meta "${goal.title}" em desenvolvimento.`);
-  };
-
-  const handleViewMilestone = (milestone: any) => {
-    console.log(`Visualizando marco: ${milestone.label}`);
-    alert(`Detalhes do marco "${milestone.label}" em desenvolvimento.`);
+  const calculateHabitWeeklyPercentage = (habit: Habit) => {
+    let completedDays = 0;
+    weekDates.forEach(date => {
+      const log = getLogForDate(habit.id, date);
+      if (habit.type === 'negative') {
+        // Para negativos, sem log = sucesso. Log com completed=false = falha.
+        if (!log || log.completed) completedDays++;
+      } else {
+        if (log?.completed) completedDays++;
+      }
+    });
+    
+    // Calcula a porcentagem baseada na frequência desejada (max 100%)
+    const percentage = Math.min(100, Math.round((completedDays / habit.frequency_per_week) * 100));
+    return percentage;
   };
 
   if (loading) {
@@ -136,136 +259,262 @@ export function Metas() {
   }
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-500 pb-10">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="space-y-10 animate-in fade-in duration-500 pb-10 max-w-6xl mx-auto">
+      {/* Header & View Toggle */}
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <div className="text-sm font-bold text-text-muted uppercase tracking-widest mb-2">Visão Macro</div>
-          <h1 className="text-4xl md:text-5xl font-serif font-semibold tracking-tight text-primary">Metas 90 Dias</h1>
+          <div className="text-sm font-bold text-text-muted uppercase tracking-widest mb-2">1 Ano em 12 Semanas</div>
+          <h1 className="text-4xl md:text-5xl font-serif font-semibold tracking-tight text-primary">Metas & Execução</h1>
         </div>
-        <div className="flex gap-3">
+        
+        <div className="flex bg-surface border border-surface-border p-1 rounded-2xl shadow-sm">
           <button 
-            onClick={handleEditGoals}
-            className="bg-surface border border-surface-border text-primary px-5 py-2.5 rounded-full font-medium hover:bg-surface-hover transition-colors flex items-center gap-2 shadow-sm"
+            onClick={() => setViewMode('macro')}
+            className={cn(
+              "flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all",
+              viewMode === 'macro' ? "bg-primary text-white shadow-md" : "text-text-muted hover:text-primary"
+            )}
           >
-            <Target className="w-4 h-4" />
-            Editar Metas
+            <LayoutDashboard className="w-4 h-4" />
+            Visão Macro
+          </button>
+          <button 
+            onClick={() => setViewMode('tracker')}
+            className={cn(
+              "flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all",
+              viewMode === 'tracker' ? "bg-primary text-white shadow-md" : "text-text-muted hover:text-primary"
+            )}
+          >
+            <TableProperties className="w-4 h-4" />
+            Rastreador
           </button>
         </div>
       </header>
 
-      {/* Master Progress & Vision */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Cycle Progress */}
-        <div className="lg:col-span-2 bg-surface border border-surface-border rounded-3xl p-8 shadow-sm flex flex-col justify-center">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-background border border-surface-border rounded-xl">
-                <Calendar className="w-5 h-5 text-primary" />
+      {viewMode === 'macro' ? (
+        /* ================= VISÃO MACRO ================= */
+        <div className="space-y-10 animate-in slide-in-from-left-4 duration-300">
+          {/* Master Progress & Vision */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Cycle Progress */}
+            <div className="lg:col-span-2 bg-surface border border-surface-border rounded-3xl p-8 shadow-sm flex flex-col justify-center">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-background border border-surface-border rounded-xl">
+                    <Calendar className="w-5 h-5 text-primary" />
+                  </div>
+                  <h2 className="font-serif text-2xl font-semibold text-secondary">Progresso do Ciclo</h2>
+                </div>
+                <div className="text-right">
+                  <span className="text-3xl font-serif font-bold text-primary">Dia {currentDay}</span>
+                  <span className="text-text-muted font-mono ml-2">/ {totalDays}</span>
+                </div>
               </div>
-              <h2 className="font-serif text-2xl font-semibold text-secondary">Progresso do Ciclo</h2>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm font-mono text-text-muted">
+                  <span>Início: 01 Mar</span>
+                  <span>Fim: 29 Mai</span>
+                </div>
+                <div className="h-4 w-full bg-background rounded-full overflow-hidden border border-surface-border relative">
+                  <div 
+                    className="absolute top-0 left-0 h-full bg-primary transition-all duration-1000 ease-out"
+                    style={{ width: `${cycleProgress}%` }}
+                  />
+                </div>
+                <div className="text-right text-xs font-bold text-primary uppercase tracking-widest mt-2">
+                  {cycleProgress}% Concluído
+                </div>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="text-3xl font-serif font-bold text-primary">Dia {currentDay}</span>
-              <span className="text-text-muted font-mono ml-2">/ {totalDays}</span>
+
+            {/* The Vision */}
+            <div className="bg-primary text-white rounded-3xl p-8 shadow-md relative overflow-hidden flex flex-col justify-center">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
+              <div className="flex items-center gap-3 mb-4 relative z-10">
+                <Compass className="w-6 h-6 text-white/50" />
+                <h2 className="font-serif text-xl font-semibold">Tema do Ciclo</h2>
+              </div>
+              <p className="text-white/90 text-2xl font-serif leading-snug relative z-10">
+                "Fundação de Ferro"
+              </p>
+              <p className="text-white/70 font-light mt-3 relative z-10 text-sm">
+                Foco total em construir a base: saúde inegociável, rotina blindada e previsibilidade de caixa.
+              </p>
             </div>
           </div>
-          
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm font-mono text-text-muted">
-              <span>Início: 01 Mar</span>
-              <span>Fim: 29 Mai</span>
+
+          {/* Pillars Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Corpo */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-surface-border">
+                <div className="flex items-center gap-3">
+                  <Activity className="w-5 h-5 text-text-muted" />
+                  <h3 className="font-serif text-xl font-semibold text-secondary">Corpo</h3>
+                </div>
+                <button onClick={() => setIsEditModalOpen(true)} className="text-primary hover:bg-primary/10 p-1.5 rounded-lg transition-colors"><Plus className="w-4 h-4"/></button>
+              </div>
+              <div className="space-y-4">
+                {goals.corpo.map(goal => (
+                  <GoalCard key={goal.id} goal={goal} color="bg-emerald-500" />
+                ))}
+                {goals.corpo.length === 0 && <p className="text-sm text-text-muted italic">Nenhuma meta definida.</p>}
+              </div>
             </div>
-            <div className="h-4 w-full bg-background rounded-full overflow-hidden border border-surface-border relative">
-              <div 
-                className="absolute top-0 left-0 h-full bg-primary transition-all duration-1000 ease-out"
-                style={{ width: `${cycleProgress}%` }}
-              />
+
+            {/* Alma */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-surface-border">
+                <div className="flex items-center gap-3">
+                  <Brain className="w-5 h-5 text-text-muted" />
+                  <h3 className="font-serif text-xl font-semibold text-secondary">Alma</h3>
+                </div>
+                <button onClick={() => setIsEditModalOpen(true)} className="text-primary hover:bg-primary/10 p-1.5 rounded-lg transition-colors"><Plus className="w-4 h-4"/></button>
+              </div>
+              <div className="space-y-4">
+                {goals.alma.map(goal => (
+                  <GoalCard key={goal.id} goal={goal} color="bg-blue-500" />
+                ))}
+                {goals.alma.length === 0 && <p className="text-sm text-text-muted italic">Nenhuma meta definida.</p>}
+              </div>
             </div>
-            <div className="text-right text-xs font-bold text-primary uppercase tracking-widest mt-2">
-              {cycleProgress}% Concluído
+
+            {/* Trabalho */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-surface-border">
+                <div className="flex items-center gap-3">
+                  <Briefcase className="w-5 h-5 text-text-muted" />
+                  <h3 className="font-serif text-xl font-semibold text-secondary">Trabalho</h3>
+                </div>
+                <button onClick={() => setIsEditModalOpen(true)} className="text-primary hover:bg-primary/10 p-1.5 rounded-lg transition-colors"><Plus className="w-4 h-4"/></button>
+              </div>
+              <div className="space-y-4">
+                {goals.trabalho.map(goal => (
+                  <GoalCard key={goal.id} goal={goal} color="bg-orange-500" />
+                ))}
+                {goals.trabalho.length === 0 && <p className="text-sm text-text-muted italic">Nenhuma meta definida.</p>}
+              </div>
             </div>
           </div>
         </div>
-
-        {/* The Vision */}
-        <div className="bg-primary text-white rounded-3xl p-8 shadow-md relative overflow-hidden flex flex-col justify-center">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
-          <div className="flex items-center gap-3 mb-4 relative z-10">
-            <Compass className="w-6 h-6 text-white/50" />
-            <h2 className="font-serif text-xl font-semibold">Tema do Ciclo</h2>
+      ) : (
+        /* ================= RASTREADOR SEMANAL ================= */
+        <div className="bg-surface border border-surface-border rounded-3xl shadow-sm overflow-hidden animate-in slide-in-from-right-4 duration-300">
+          <div className="p-6 md:p-8 border-b border-surface-border bg-background/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="font-serif text-2xl font-semibold text-secondary">Rastreador de Hábitos</h2>
+              <p className="text-text-muted text-sm mt-1">Acompanhamento da semana atual. Preencha na aba "Hoje".</p>
+            </div>
+            <div className="flex gap-2">
+              <div className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-sm font-bold border border-emerald-200">
+                Semana Atual
+              </div>
+            </div>
           </div>
-          <p className="text-white/90 text-2xl font-serif leading-snug relative z-10">
-            "Fundação de Ferro"
-          </p>
-          <p className="text-white/70 font-light mt-3 relative z-10 text-sm">
-            Foco total em construir a base: saúde inegociável, rotina blindada e previsibilidade de caixa.
-          </p>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[800px]">
+              <thead>
+                <tr className="bg-surface-hover/50 border-b border-surface-border">
+                  <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest w-1/3">Ação Planejada (Hábito)</th>
+                  <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-24">Freq.</th>
+                  {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((day, i) => (
+                    <th key={day} className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-12">
+                      {day}
+                      <div className="text-[10px] font-normal mt-0.5 opacity-70">{weekDates[i]?.getDate()}</div>
+                    </th>
+                  ))}
+                  <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-24">% Sem.</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {habits.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="p-8 text-center text-text-muted italic">
+                      Nenhum hábito cadastrado. Vá para a aba "Hoje" para adicionar.
+                    </td>
+                  </tr>
+                ) : (
+                  habits.map(habit => {
+                    const percentage = calculateHabitWeeklyPercentage(habit);
+                    
+                    return (
+                      <tr key={habit.id} className="hover:bg-surface-hover/30 transition-colors">
+                        <td className="p-4">
+                          <div className="font-medium text-secondary">{habit.name}</div>
+                          <div className="text-xs text-text-muted mt-0.5">
+                            {habit.type === 'numeric' ? `Meta: ${habit.target_value} ${habit.unit}` : habit.type === 'negative' ? 'Evitar' : 'Check diário'}
+                          </div>
+                        </td>
+                        <td className="p-4 text-center">
+                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-background border border-surface-border text-xs font-bold text-primary">
+                            {habit.frequency_per_week}x
+                          </span>
+                        </td>
+                        
+                        {/* Dias da Semana */}
+                        {weekDates.map((date, i) => {
+                          const log = getLogForDate(habit.id, date);
+                          let isSuccess = false;
+                          let isFailed = false;
+
+                          if (habit.type === 'negative') {
+                            isSuccess = !log || log.completed; // Sem log ou completed=true é sucesso
+                            isFailed = log && !log.completed; // Log com completed=false é falha
+                          } else {
+                            isSuccess = log?.completed || false;
+                          }
+
+                          // Não mostra falha/sucesso para dias futuros
+                          const isFuture = date > new Date();
+
+                          return (
+                            <td key={i} className="p-4 text-center">
+                              {isFuture ? (
+                                <div className="w-6 h-6 mx-auto rounded bg-surface-border/30" />
+                              ) : habit.type === 'numeric' && log ? (
+                                <div className={cn(
+                                  "text-xs font-mono font-bold px-2 py-1 rounded-md inline-block",
+                                  isSuccess ? "bg-emerald-100 text-emerald-700" : "bg-blue-50 text-blue-700"
+                                )}>
+                                  {log.value}<span className="text-[10px] opacity-70 font-normal ml-0.5">/{habit.target_value}</span>
+                                </div>
+                              ) : isSuccess ? (
+                                <div className="w-6 h-6 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                  <Check className="w-4 h-4" />
+                                </div>
+                              ) : isFailed ? (
+                                <div className="w-6 h-6 mx-auto rounded-full bg-red-100 text-red-600 flex items-center justify-center">
+                                  <X className="w-4 h-4" />
+                                </div>
+                              ) : (
+                                <div className="w-6 h-6 mx-auto rounded-full border-2 border-surface-border" />
+                              )}
+                            </td>
+                          );
+                        })}
+
+                        {/* Porcentagem */}
+                        <td className="p-4 text-center">
+                          <div className={cn(
+                            "inline-flex items-center justify-center px-3 py-1 rounded-lg text-sm font-bold",
+                            percentage >= 100 ? "bg-emerald-100 text-emerald-700" :
+                            percentage >= 50 ? "bg-yellow-100 text-yellow-700" :
+                            "bg-red-100 text-red-700"
+                          )}>
+                            {percentage}%
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-
-      </div>
-
-      {/* Pillars Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        
-        {/* Corpo */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 pb-4 border-b border-surface-border">
-            <Activity className="w-5 h-5 text-text-muted" />
-            <h3 className="font-serif text-xl font-semibold text-secondary">Corpo</h3>
-          </div>
-          <div className="space-y-4">
-            {goals.corpo.map(goal => (
-              <GoalCard key={goal.id} goal={goal} color="bg-emerald-500" onClick={() => handleViewGoal(goal)} />
-            ))}
-          </div>
-        </div>
-
-        {/* Alma */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 pb-4 border-b border-surface-border">
-            <Brain className="w-5 h-5 text-text-muted" />
-            <h3 className="font-serif text-xl font-semibold text-secondary">Alma</h3>
-          </div>
-          <div className="space-y-4">
-            {goals.alma.map(goal => (
-              <GoalCard key={goal.id} goal={goal} color="bg-blue-500" onClick={() => handleViewGoal(goal)} />
-            ))}
-          </div>
-        </div>
-
-        {/* Trabalho */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 pb-4 border-b border-surface-border">
-            <Briefcase className="w-5 h-5 text-text-muted" />
-            <h3 className="font-serif text-xl font-semibold text-secondary">Trabalho</h3>
-          </div>
-          <div className="space-y-4">
-            {goals.trabalho.map(goal => (
-              <GoalCard key={goal.id} goal={goal} color="bg-orange-500" onClick={() => handleViewGoal(goal)} />
-            ))}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Milestones */}
-      <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
-        <h2 className="font-serif text-2xl font-semibold text-secondary mb-8">Marcos do Ciclo (Milestones)</h2>
-        
-        <div className="relative">
-          {/* Connecting Line */}
-          <div className="absolute top-1/2 left-0 w-full h-0.5 bg-surface-border -translate-y-1/2 hidden md:block" />
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative z-10">
-            <Milestone day="0" label="Início" date="01 Mar" status="completed" onClick={() => handleViewMilestone({label: "Início"})} />
-            <Milestone day="30" label="Revisão 1/3" date="30 Mar" status="current" onClick={() => handleViewMilestone({label: "Revisão 1/3"})} />
-            <Milestone day="60" label="Revisão 2/3" date="29 Abr" status="pending" onClick={() => handleViewMilestone({label: "Revisão 2/3"})} />
-            <Milestone day="90" label="Fechamento" date="29 Mai" status="pending" onClick={() => handleViewMilestone({label: "Fechamento"})} />
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Edit Goals Modal */}
       <Modal 
@@ -277,26 +526,39 @@ export function Metas() {
         <div className="space-y-8">
           <div className="space-y-6">
             <h4 className="text-sm font-bold text-text-muted uppercase tracking-widest border-b border-surface-border pb-2">Metas Ativas</h4>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
+              {[...goals.corpo, ...goals.alma, ...goals.trabalho].length === 0 && (
+                <p className="text-sm text-text-muted italic">Nenhuma meta cadastrada.</p>
+              )}
               {[...goals.corpo, ...goals.alma, ...goals.trabalho].map(goal => (
                 <div key={goal.id} className="flex items-center justify-between p-4 bg-background border border-surface-border rounded-2xl">
                   <div>
                     <div className="font-medium text-secondary">{goal.title}</div>
                     <div className="text-xs text-text-muted">Meta: {goal.target}{goal.unit}</div>
                   </div>
-                  <button 
-                    onClick={() => handleDeleteGoal(goal.id)}
-                    className="p-2 text-text-muted hover:text-red-500 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleEditGoalClick(goal)}
+                      className="p-2 text-text-muted hover:text-primary transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteGoal(goal.id)}
+                      className="p-2 text-text-muted hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-sm font-bold text-text-muted uppercase tracking-widest border-b border-surface-border pb-2">Nova Meta</h4>
+            <h4 className="text-sm font-bold text-text-muted uppercase tracking-widest border-b border-surface-border pb-2">
+              {editingGoalId ? "Editar Meta" : "Nova Meta"}
+            </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-text-muted ml-1">Título</label>
@@ -341,22 +603,40 @@ export function Metas() {
                 />
               </div>
             </div>
-            <button 
-              onClick={handleAddGoal}
-              className="w-full py-3 bg-background border border-dashed border-primary/30 text-primary rounded-xl text-sm font-medium hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Adicionar Meta
-            </button>
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t border-surface-border">
-            <button 
-              onClick={() => setIsEditModalOpen(false)}
-              className="flex-1 py-3 bg-background border border-surface-border rounded-xl text-sm font-medium hover:bg-surface-hover transition-colors"
-            >
-              Fechar
-            </button>
+            <div className="flex gap-3">
+              {editingGoalId && (
+                <button 
+                  onClick={() => {
+                    setEditingGoalId(null);
+                    setNewGoal({ title: "", category: "Corpo", target_value: "", unit: "", start_value: "" });
+                  }}
+                  className="flex-1 py-3 bg-surface border border-surface-border text-text-muted rounded-xl text-sm font-medium hover:bg-surface-border/50 transition-colors"
+                >
+                  Cancelar
+                </button>
+              )}
+              <button 
+                onClick={handleAddGoal}
+                className={cn(
+                  "flex-[2] py-3 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2",
+                  editingGoalId 
+                    ? "bg-primary text-white hover:bg-primary/90" 
+                    : "bg-background border border-dashed border-primary/30 text-primary hover:bg-primary/5"
+                )}
+              >
+                {editingGoalId ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Salvar Alterações
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Adicionar Meta
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
@@ -364,26 +644,20 @@ export function Metas() {
   );
 }
 
-function GoalCard({ goal, color, onClick }: any) {
-  // Calculate percentage based on whether the goal is to increase or decrease a value
+function GoalCard({ goal, color }: any) {
   let percentage = 0;
   if (goal.inverse) {
-    // For things like weight loss or time reduction
     const totalDiff = goal.start - goal.target;
     const currentDiff = goal.start - goal.current;
     percentage = Math.max(0, Math.min(100, (currentDiff / totalDiff) * 100));
   } else {
-    // For things like revenue or books read
     const totalDiff = goal.target - goal.start;
     const currentDiff = goal.current - goal.start;
     percentage = Math.max(0, Math.min(100, (currentDiff / totalDiff) * 100));
   }
 
   return (
-    <div 
-      onClick={onClick}
-      className="bg-surface border border-surface-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
-    >
+    <div className="bg-surface border border-surface-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all">
       <div className="flex justify-between items-start mb-4">
         <h4 className="font-medium text-secondary leading-snug pr-4">{goal.title}</h4>
         {percentage >= 100 ? (
@@ -410,27 +684,6 @@ function GoalCard({ goal, color, onClick }: any) {
           />
         </div>
       </div>
-    </div>
-  );
-}
-
-function Milestone({ day, label, date, status, onClick }: any) {
-  return (
-    <div 
-      onClick={onClick}
-      className="flex flex-col items-center text-center bg-surface md:bg-transparent p-4 md:p-0 rounded-2xl border md:border-none border-surface-border cursor-pointer group transition-all active:scale-[0.95]"
-    >
-      <div className={cn(
-        "w-12 h-12 rounded-full flex items-center justify-center mb-3 border-2 transition-all z-10 bg-surface group-hover:scale-110",
-        status === 'completed' ? "border-emerald-500 text-emerald-500" :
-        status === 'current' ? "border-primary text-primary shadow-[0_0_15px_rgba(10,37,64,0.2)]" :
-        "border-surface-border text-text-muted"
-      )}>
-        {status === 'completed' ? <CheckCircle2 className="w-6 h-6" /> : <Flag className="w-5 h-5" />}
-      </div>
-      <div className="font-serif font-bold text-secondary text-lg group-hover:text-primary transition-colors">Dia {day}</div>
-      <div className="text-sm font-medium text-primary mt-1">{label}</div>
-      <div className="text-xs font-mono text-text-muted mt-1">{date}</div>
     </div>
   );
 }
