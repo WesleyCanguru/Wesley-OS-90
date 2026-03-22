@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import confetti from "canvas-confetti";
 import { 
   Target, 
   Calendar, 
@@ -40,9 +41,24 @@ type HabitLog = {
 
 export function Metas() {
   const user = useUser();
-  const currentDay = 18;
-  const totalDays = 90;
+  
+  // Configuração do Ciclo de 12 Semanas
+  const startDate = new Date(2026, 2, 23); // 23 de Março de 2026 (Mês 2 = Março no JS)
+  const totalDays = 84; // 12 semanas * 7 dias
+  const endDate = new Date(startDate.getTime() + (totalDays - 1) * 24 * 60 * 60 * 1000);
+  
+  const today = new Date();
+  const diffTime = today.getTime() - startDate.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  
+  // Se ainda não começou, mostra Dia 0. Se já passou, trava no 84.
+  const currentDay = diffDays < 1 ? 0 : Math.min(diffDays, totalDays);
+  const currentWeek = currentDay === 0 ? 1 : Math.ceil(currentDay / 7);
   const cycleProgress = Math.round((currentDay / totalDays) * 100);
+  
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
+  };
   
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'macro' | 'tracker'>('macro');
@@ -63,6 +79,7 @@ export function Metas() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [weeklyLogs, setWeeklyLogs] = useState<Record<string, Record<string, HabitLog>>>({}); // habit_id -> date -> log
   const [weekDates, setWeekDates] = useState<Date[]>([]);
+  const celebratedHabits = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (user) {
@@ -134,16 +151,12 @@ export function Metas() {
       if (habitsError) throw habitsError;
       setHabits(habitsData || []);
 
-      // Busca Logs dos últimos 7 dias (simplificado para pegar a semana atual)
-      const today = new Date();
-      const sevenDaysAgo = new Date(today);
-      sevenDaysAgo.setDate(today.getDate() - 7);
-      
+      // Busca Logs desde o início do ciclo
       const { data: logsData, error: logsError } = await supabase
         .from('habit_logs')
         .select('*')
         .eq('user_name', user.name)
-        .gte('date', sevenDaysAgo.toISOString().split('T')[0]);
+        .gte('date', startDate.toISOString().split('T')[0]);
 
       if (logsError) throw logsError;
 
@@ -250,6 +263,62 @@ export function Metas() {
     return percentage;
   };
 
+  const calculateOverallScore = () => {
+    if (habits.length === 0 || currentDay === 0) return 0;
+    
+    let totalHabitScores = 0;
+    
+    habits.forEach(habit => {
+      let completedDays = 0;
+      let expectedDays = Math.max(1, Math.round((habit.frequency_per_week / 7) * currentDay));
+      
+      for (let d = 0; d < currentDay; d++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + d);
+        const dateStr = date.toISOString().split('T')[0];
+        const log = weeklyLogs[habit.id]?.[dateStr];
+        
+        if (habit.type === 'negative') {
+          if (!log || log.completed) completedDays++;
+        } else {
+          if (log?.completed) completedDays++;
+        }
+      }
+      
+      const pct = Math.min(100, Math.round((completedDays / expectedDays) * 100));
+      totalHabitScores += pct;
+    });
+    
+    return Math.round(totalHabitScores / habits.length);
+  };
+
+  const weeklyScores = habits.map(calculateHabitWeeklyPercentage);
+  const weeklyScore = habits.length ? Math.round(weeklyScores.reduce((a, b) => a + b, 0) / habits.length) : 0;
+  const overallScore = calculateOverallScore();
+
+  // Efeito para soltar fogos quando bater 85%
+  useEffect(() => {
+    if (habits.length === 0 || Object.keys(weeklyLogs).length === 0) return;
+    
+    let fired = false;
+    habits.forEach(habit => {
+      const pct = calculateHabitWeeklyPercentage(habit);
+      if (pct >= 85 && !celebratedHabits.current.has(habit.id)) {
+        celebratedHabits.current.add(habit.id);
+        fired = true;
+      }
+    });
+
+    if (fired) {
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#10b981', '#34d399', '#6ee7b7', '#fcd34d']
+      });
+    }
+  }, [weeklyLogs, habits, weekDates]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -313,8 +382,8 @@ export function Metas() {
               
               <div className="space-y-2">
                 <div className="flex justify-between text-sm font-mono text-text-muted">
-                  <span>Início: 01 Mar</span>
-                  <span>Fim: 29 Mai</span>
+                  <span className="capitalize">Início: {formatDate(startDate)}</span>
+                  <span className="capitalize">Fim: {formatDate(endDate)}</span>
                 </div>
                 <div className="h-4 w-full bg-background rounded-full overflow-hidden border border-surface-border relative">
                   <div 
@@ -401,14 +470,30 @@ export function Metas() {
       ) : (
         /* ================= RASTREADOR SEMANAL ================= */
         <div className="bg-surface border border-surface-border rounded-3xl shadow-sm overflow-hidden animate-in slide-in-from-right-4 duration-300">
-          <div className="p-6 md:p-8 border-b border-surface-border bg-background/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-6 md:p-8 border-b border-surface-border bg-background/50 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
               <h2 className="font-serif text-2xl font-semibold text-secondary">Rastreador de Hábitos</h2>
               <p className="text-text-muted text-sm mt-1">Acompanhamento da semana atual. Preencha na aba "Hoje".</p>
             </div>
-            <div className="flex gap-2">
-              <div className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-sm font-bold border border-emerald-200">
-                Semana Atual
+            
+            <div className="flex flex-wrap gap-4">
+              <div className="flex flex-col items-center justify-center px-4 py-2 bg-surface border border-surface-border rounded-xl">
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Semana</span>
+                <span className="text-lg font-serif font-bold text-primary">{currentWeek} <span className="text-sm text-text-muted font-sans">/ 12</span></span>
+              </div>
+              
+              <div className="flex flex-col items-center justify-center px-4 py-2 bg-surface border border-surface-border rounded-xl">
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Score Semanal</span>
+                <span className={cn("text-lg font-serif font-bold", weeklyScore >= 85 ? "text-emerald-600" : "text-primary")}>
+                  {weeklyScore}%
+                </span>
+              </div>
+
+              <div className="flex flex-col items-center justify-center px-4 py-2 bg-surface border border-surface-border rounded-xl">
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Score Geral</span>
+                <span className={cn("text-lg font-serif font-bold", overallScore >= 85 ? "text-emerald-600" : "text-primary")}>
+                  {overallScore}%
+                </span>
               </div>
             </div>
           </div>
@@ -497,12 +582,13 @@ export function Metas() {
 
                         {/* Porcentagem */}
                         <td className="p-4 text-center">
-                          <div className={cn(
-                            "inline-flex items-center justify-center px-3 py-1 rounded-lg text-sm font-bold",
-                            percentage >= 100 ? "bg-emerald-100 text-emerald-700" :
-                            percentage >= 50 ? "bg-yellow-100 text-yellow-700" :
-                            "bg-red-100 text-red-700"
-                          )}>
+                          <div 
+                            className="inline-flex items-center justify-center px-3 py-1 rounded-lg text-sm font-bold transition-colors duration-500"
+                            style={{ 
+                              backgroundColor: `hsl(${Math.min(120, (percentage / 85) * 120)}, 80%, 90%)`,
+                              color: `hsl(${Math.min(120, (percentage / 85) * 120)}, 80%, 35%)`
+                            }}
+                          >
                             {percentage}%
                           </div>
                         </td>
