@@ -26,7 +26,7 @@ export default function App() {
   const isConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('w90_user');
+    const savedUser = localStorage.getItem('w12_user');
     if (savedUser) {
       const parsedUser = JSON.parse(savedUser);
       setUser(parsedUser);

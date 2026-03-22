@@ -22,6 +22,8 @@ import { Modal } from "@/components/Modal";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/hooks/useUser";
 
+import { getCycleInfo } from "@/lib/cycle";
+
 // Tipos para o Rastreador
 type Habit = {
   id: string;
@@ -43,18 +45,7 @@ export function Metas() {
   const user = useUser();
   
   // Configuração do Ciclo de 12 Semanas
-  const startDate = new Date(2026, 2, 23); // 23 de Março de 2026 (Mês 2 = Março no JS)
-  const totalDays = 84; // 12 semanas * 7 dias
-  const endDate = new Date(startDate.getTime() + (totalDays - 1) * 24 * 60 * 60 * 1000);
-  
-  const today = new Date();
-  const diffTime = today.getTime() - startDate.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-  
-  // Se ainda não começou, mostra Dia 0. Se já passou, trava no 84.
-  const currentDay = diffDays < 1 ? 0 : Math.min(diffDays, totalDays);
-  const currentWeek = currentDay === 0 ? 1 : Math.ceil(currentDay / 7);
-  const cycleProgress = Math.round((currentDay / totalDays) * 100);
+  const { startDate, endDate, totalDays, currentDay, currentWeek, cycleProgress } = getCycleInfo();
   
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
@@ -151,12 +142,22 @@ export function Metas() {
       if (habitsError) throw habitsError;
       setHabits(habitsData || []);
 
-      // Busca Logs desde o início do ciclo
+      // Define a data inicial para buscar os logs (menor data entre o início do ciclo e a segunda-feira atual)
+      const todayForFetch = new Date();
+      const dayOfWeek = todayForFetch.getDay();
+      const diffToMonday = todayForFetch.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      const monday = new Date(todayForFetch);
+      monday.setDate(diffToMonday);
+      
+      const fetchStartDate = startDate < monday ? startDate : monday;
+      const localFetchDate = new Date(fetchStartDate.getTime() - (fetchStartDate.getTimezoneOffset() * 60000));
+
+      // Busca Logs
       const { data: logsData, error: logsError } = await supabase
         .from('habit_logs')
         .select('*')
         .eq('user_name', user.name)
-        .gte('date', startDate.toISOString().split('T')[0]);
+        .gte('date', localFetchDate.toISOString().split('T')[0]);
 
       if (logsError) throw logsError;
 
@@ -248,11 +249,16 @@ export function Metas() {
 
   const calculateHabitWeeklyPercentage = (habit: Habit) => {
     let completedDays = 0;
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // Fim do dia de hoje
+
     weekDates.forEach(date => {
       const log = getLogForDate(habit.id, date);
+      const isFuture = date > today;
+
       if (habit.type === 'negative') {
-        // Para negativos, sem log = sucesso. Log com completed=false = falha.
-        if (!log || log.completed) completedDays++;
+        // Para negativos, sem log = sucesso. Mas não conta dias futuros.
+        if (!isFuture && (!log || log.completed)) completedDays++;
       } else {
         if (log?.completed) completedDays++;
       }

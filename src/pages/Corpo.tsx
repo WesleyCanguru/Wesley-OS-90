@@ -27,13 +27,22 @@ import { Modal } from "@/components/Modal";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/hooks/useUser";
 
+import { calculateMacros } from "@/services/geminiService";
+import { getCycleInfo } from "@/lib/cycle";
+
 export function Corpo() {
   const user = useUser();
   const [loading, setLoading] = useState(true);
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [isMeasurementsModalOpen, setIsMeasurementsModalOpen] = useState(false);
   const [isFoodModalOpen, setIsFoodModalOpen] = useState(false);
+  const [isMealModalOpen, setIsMealModalOpen] = useState(false);
+  const [mealDescription, setMealDescription] = useState("");
+  const [isCalculatingMacros, setIsCalculatingMacros] = useState(false);
   const [selectedMacro, setSelectedMacro] = useState<string | null>(null);
+  const [viewingGallery, setViewingGallery] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [chartMetric, setChartMetric] = useState<"peso" | "bf" | "muscle">("peso");
   
   const [weight, setWeight] = useState<number>(0);
   const [weightHistory, setWeightHistory] = useState<any[]>([]);
@@ -65,7 +74,10 @@ export function Corpo() {
       if (stats && stats.length > 0) {
         const history = stats.map(s => ({
           day: new Date(s.created_at).toLocaleDateString('pt-BR', { day: '2-digit' }),
-          peso: s.weight
+          peso: s.weight,
+          photo_url: s.measurements?.photo_url,
+          bf: s.measurements?.bf ? parseFloat(s.measurements.bf) : null,
+          muscle: s.measurements?.muscle ? parseFloat(s.measurements.muscle) : null
         }));
         setWeightHistory(history);
         setWeight(stats[stats.length - 1].weight);
@@ -136,9 +148,80 @@ export function Corpo() {
     }
   };
 
+  const handleSaveMeal = async () => {
+    if (!mealDescription || !user) return;
+    setIsCalculatingMacros(true);
+    try {
+      const macros = await calculateMacros(mealDescription);
+      if (macros) {
+        const { error } = await supabase.from('food_logs').insert([
+          { user_name: user.name, meal_type: 'Calorias', calories: macros.calories, amount: 0, unit: 'kcal' },
+          { user_name: user.name, meal_type: 'Proteínas', calories: 0, amount: macros.protein, unit: 'g' },
+          { user_name: user.name, meal_type: 'Carboidratos', calories: 0, amount: macros.carbs, unit: 'g' },
+          { user_name: user.name, meal_type: 'Gorduras', calories: 0, amount: macros.fats, unit: 'g' }
+        ]);
+        if (error) throw error;
+        setIsMealModalOpen(false);
+        setMealDescription("");
+        fetchBodyData();
+      } else {
+        alert("Não foi possível calcular os macros. Tente novamente.");
+      }
+    } catch (error) {
+      console.error("Erro ao salvar refeição:", error);
+      alert("Erro ao salvar refeição.");
+    } finally {
+      setIsCalculatingMacros(false);
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    
+    setUploadingPhoto(true);
+    try {
+      // Compress image
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = async () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800;
+          const scaleSize = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+          
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+          
+          const base64Image = canvas.toDataURL('image/jpeg', 0.7);
+          
+          // Save to body_stats
+          const newMeasurements = { ...measurements, photo_url: base64Image };
+          const { error } = await supabase.from('body_stats').insert([{
+            user_name: user.name,
+            weight: weight,
+            measurements: newMeasurements
+          }]);
+          
+          if (error) throw error;
+          fetchBodyData();
+          setUploadingPhoto(false);
+          alert("Foto salva com sucesso!");
+        };
+      };
+    } catch (error) {
+      console.error("Erro ao fazer upload da foto:", error);
+      alert("Erro ao fazer upload da foto.");
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleNewPhoto = () => {
-    console.log("Abrindo câmera para nova foto...");
-    alert("Funcionalidade de câmera será implementada com Supabase Storage.");
+    document.getElementById('photo-upload')?.click();
   };
 
   const handleRegisterMeasurements = () => {
@@ -150,8 +233,7 @@ export function Corpo() {
   };
 
   const handleViewPhotos = () => {
-    console.log("Abrindo galeria de fotos...");
-    alert("Galeria de fotos em desenvolvimento.");
+    setViewingGallery(true);
   };
 
   const handleSyncHealth = (metric: string) => {
@@ -177,8 +259,73 @@ export function Corpo() {
   const totalCarbs = foodLogs.filter(f => f.meal_type === 'Carboidratos').reduce((acc, curr) => acc + (curr.amount || 0), 0);
   const totalFats = foodLogs.filter(f => f.meal_type === 'Gorduras').reduce((acc, curr) => acc + (curr.amount || 0), 0);
 
+  const nutritionTargets = user?.name === 'Sarah' 
+    ? { calories: 1200, protein: 96, carbs: 135, fats: 30 }
+    : { calories: 1980, protein: 160, carbs: 180, fats: 60 }; // Wesley's targets
+
+  const photos = weightHistory.filter(h => h.photo_url).map(h => ({
+    day: h.day,
+    url: h.photo_url,
+    weight: h.peso
+  }));
+
+  if (viewingGallery) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+        <header className="flex items-center justify-between">
+          <div>
+            <button onClick={() => setViewingGallery(false)} className="text-text-muted hover:text-primary flex items-center gap-2 mb-2">
+              <ChevronRight className="w-4 h-4 rotate-180" />
+              Voltar
+            </button>
+            <h1 className="text-3xl font-serif font-semibold text-primary">Galeria de Progresso</h1>
+          </div>
+          <button 
+            onClick={handleNewPhoto}
+            className="bg-primary text-white px-5 py-2.5 rounded-full font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-md"
+          >
+            <Camera className="w-4 h-4" />
+            Nova Foto
+          </button>
+        </header>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {photos.length === 0 ? (
+            <div className="col-span-full py-12 text-center text-text-muted">
+              Nenhuma foto registrada ainda.
+            </div>
+          ) : (
+            photos.map((photo, i) => (
+              <div key={i} className="aspect-[3/4] bg-surface rounded-2xl border border-surface-border overflow-hidden relative group">
+                <img src={photo.url} alt={`Progresso ${photo.day}`} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+                  <span className="text-white font-bold">{photo.day}</span>
+                  <span className="text-white/80 text-sm">{photo.weight} kg</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <input 
+          type="file" 
+          id="photo-upload" 
+          accept="image/*" 
+          className="hidden" 
+          onChange={handlePhotoUpload} 
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-10">
+      <input 
+        type="file" 
+        id="photo-upload" 
+        accept="image/*" 
+        className="hidden" 
+        onChange={handlePhotoUpload} 
+      />
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
@@ -225,17 +372,21 @@ export function Corpo() {
           {/* Weight Chart */}
           <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="font-serif text-2xl font-semibold text-secondary">Tendência de Peso</h2>
-              <select className="bg-background border border-surface-border text-sm rounded-lg px-3 py-1.5 outline-none focus:border-primary">
-                <option>Últimos 18 dias</option>
-                <option>Últimos 30 dias</option>
-                <option>Ciclo Completo</option>
+              <h2 className="font-serif text-2xl font-semibold text-secondary">Evolução</h2>
+              <select 
+                value={chartMetric}
+                onChange={(e) => setChartMetric(e.target.value as any)}
+                className="bg-background border border-surface-border text-sm rounded-lg px-3 py-1.5 outline-none focus:border-primary"
+              >
+                <option value="peso">Peso (kg)</option>
+                <option value="bf">Gordura (%)</option>
+                <option value="muscle">Massa Muscular (kg)</option>
               </select>
             </div>
             
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={weightHistory.length > 0 ? weightHistory : [{day: '01', peso: weight}]} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <LineChart data={weightHistory.length > 0 ? weightHistory : [{day: '01', peso: weight, bf: measurements.bf, muscle: measurements.muscle}]} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E2D9" />
                   <XAxis 
                     dataKey="day" 
@@ -262,11 +413,12 @@ export function Corpo() {
                   />
                   <Line 
                     type="monotone" 
-                    dataKey="peso" 
+                    dataKey={chartMetric} 
                     stroke="#0A2540" 
                     strokeWidth={3}
                     dot={{ fill: '#0A2540', strokeWidth: 2, r: 4 }}
                     activeDot={{ r: 6, fill: '#00e5ff', stroke: '#0A2540' }}
+                    connectNulls
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -313,20 +465,29 @@ export function Corpo() {
           
           {/* Nutrition Macros */}
           <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="p-2 bg-background border border-surface-border rounded-xl">
-                <Utensils className="w-5 h-5 text-primary" />
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-background border border-surface-border rounded-xl">
+                  <Utensils className="w-5 h-5 text-primary" />
+                </div>
+                <h2 className="font-serif text-2xl font-semibold text-secondary">Nutrição Hoje</h2>
               </div>
-              <h2 className="font-serif text-2xl font-semibold text-secondary">Nutrição Hoje</h2>
+              <button 
+                onClick={() => setIsMealModalOpen(true)}
+                className="bg-primary/10 text-primary px-4 py-2 rounded-xl text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Refeição
+              </button>
             </div>
 
             <div className="space-y-6">
-              <MacroBar label="Proteínas" current={totalProteins} target={180} unit="g" color="bg-primary" onClick={() => handleLogFood("Proteínas")} />
-              <MacroBar label="Carboidratos" current={totalCarbs} target={200} unit="g" color="bg-blue-400" onClick={() => handleLogFood("Carboidratos")} />
-              <MacroBar label="Gorduras" current={totalFats} target={70} unit="g" color="bg-yellow-500" onClick={() => handleLogFood("Gorduras")} />
+              <MacroBar label="Proteínas" current={totalProteins} target={nutritionTargets.protein} unit="g" color="bg-primary" onClick={() => handleLogFood("Proteínas")} />
+              <MacroBar label="Carboidratos" current={totalCarbs} target={nutritionTargets.carbs} unit="g" color="bg-blue-400" onClick={() => handleLogFood("Carboidratos")} />
+              <MacroBar label="Gorduras" current={totalFats} target={nutritionTargets.fats} unit="g" color="bg-yellow-500" onClick={() => handleLogFood("Gorduras")} />
               
               <div className="pt-4 border-t border-surface-border mt-4">
-                <MacroBar label="Calorias Totais" current={totalCalories} target={2200} unit="kcal" color="bg-secondary" onClick={() => handleLogFood("Calorias")} />
+                <MacroBar label="Calorias Totais" current={totalCalories} target={nutritionTargets.calories} unit="kcal" color="bg-secondary" onClick={() => handleLogFood("Calorias")} />
               </div>
             </div>
             
@@ -350,10 +511,18 @@ export function Corpo() {
             </div>
             
             <div className="grid grid-cols-2 gap-3">
-              <div className="aspect-[3/4] bg-background rounded-xl border border-surface-border flex flex-col items-center justify-center text-text-muted relative overflow-hidden">
-                <span className="text-xs font-mono absolute top-3 left-3 bg-surface/80 px-2 py-1 rounded-md backdrop-blur-sm">Dia 01</span>
-                <Camera className="w-6 h-6 opacity-20" />
-              </div>
+              {photos.length > 0 && (
+                <div className="aspect-[3/4] bg-background rounded-xl border border-surface-border flex flex-col items-center justify-center text-text-muted relative overflow-hidden">
+                  <img src={photos[photos.length - 1].url} alt="Última foto" className="w-full h-full object-cover" />
+                  <span className="text-xs font-mono absolute top-3 left-3 bg-surface/80 px-2 py-1 rounded-md backdrop-blur-sm">{photos[photos.length - 1].day}</span>
+                </div>
+              )}
+              {photos.length === 0 && (
+                <div className="aspect-[3/4] bg-background rounded-xl border border-surface-border flex flex-col items-center justify-center text-text-muted relative overflow-hidden">
+                  <span className="text-xs font-mono absolute top-3 left-3 bg-surface/80 px-2 py-1 rounded-md backdrop-blur-sm">Dia 01</span>
+                  <Camera className="w-6 h-6 opacity-20" />
+                </div>
+              )}
               <div 
                 onClick={(e) => {
                   e.stopPropagation();
@@ -361,8 +530,12 @@ export function Corpo() {
                 }}
                 className="aspect-[3/4] bg-background rounded-xl border border-dashed border-surface-border flex flex-col items-center justify-center text-text-muted hover:bg-surface-hover transition-colors"
               >
-                <Camera className="w-6 h-6 mb-2 text-primary/50" />
-                <span className="text-xs font-medium">Adicionar</span>
+                {uploadingPhoto ? (
+                  <Loader2 className="w-6 h-6 mb-2 text-primary animate-spin" />
+                ) : (
+                  <Camera className="w-6 h-6 mb-2 text-primary/50" />
+                )}
+                <span className="text-xs font-medium">{uploadingPhoto ? 'Enviando...' : 'Adicionar'}</span>
               </div>
             </div>
           </div>
@@ -486,6 +659,39 @@ export function Corpo() {
             className="w-full p-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md"
           >
             Confirmar Registro
+          </button>
+        </div>
+      </Modal>
+
+      <Modal 
+        isOpen={isMealModalOpen} 
+        onClose={() => !isCalculatingMacros && setIsMealModalOpen(false)} 
+        title="Registrar Refeição (IA)"
+      >
+        <div className="space-y-6">
+          <div className="p-1 bg-background rounded-2xl border border-surface-border">
+            <textarea 
+              placeholder="Ex: Café da manhã: 80g de arroz, 40g de feijão, 130g de frango grelhado..." 
+              value={mealDescription}
+              onChange={(e) => setMealDescription(e.target.value)}
+              className="w-full h-32 bg-transparent border-none outline-none p-4 text-secondary resize-none focus:ring-0"
+              disabled={isCalculatingMacros}
+            />
+          </div>
+          
+          <button 
+            onClick={handleSaveMeal}
+            disabled={isCalculatingMacros || !mealDescription}
+            className="w-full p-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isCalculatingMacros ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Calculando Macros...
+              </>
+            ) : (
+              "Calcular e Salvar"
+            )}
           </button>
         </div>
       </Modal>

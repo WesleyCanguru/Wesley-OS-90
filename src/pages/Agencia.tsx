@@ -24,7 +24,7 @@ export function Agencia() {
     mrr: 0,
     spot: 0,
     ticketMedio: 2500,
-    meta90Dias: 40000,
+    meta12Semanas: 40000,
     faturadoCiclo: 0,
   });
 
@@ -34,7 +34,7 @@ export function Agencia() {
         mrr: 12500,
         spot: 2900,
         ticketMedio: 2500,
-        meta90Dias: 40000,
+        meta12Semanas: 40000,
         faturadoCiclo: 15400,
       });
       setClients([
@@ -49,7 +49,7 @@ export function Agencia() {
         mrr: 0,
         spot: 0,
         ticketMedio: 0,
-        meta90Dias: 40000,
+        meta12Semanas: 40000,
         faturadoCiclo: 0,
       });
       setClients([]);
@@ -63,7 +63,7 @@ export function Agencia() {
   const [newClient, setNewClient] = useState({ name: "", type: "Recorrente", value: "" });
   const [newSale, setNewSale] = useState({ clientName: "", value: "", type: "Spot" });
 
-  const faltamParaMeta = metrics.meta90Dias - metrics.faturadoCiclo;
+  const faltamParaMeta = metrics.meta12Semanas - metrics.faturadoCiclo;
   const novosClientesNecessarios = Math.ceil(faltamParaMeta / metrics.ticketMedio);
 
   const handleAddClient = (e: FormEvent) => {
@@ -162,7 +162,7 @@ export function Agencia() {
         <MetricCard 
           label="Faturado Ciclo" 
           value={`R$ ${(metrics.faturadoCiclo / 1000).toFixed(1)}k`} 
-          subtext={`Meta: R$ ${metrics.meta90Dias / 1000}k`} 
+          subtext={`Meta: R$ ${metrics.meta12Semanas / 1000}k`} 
           icon={Briefcase} 
           color="text-orange-500" 
         />

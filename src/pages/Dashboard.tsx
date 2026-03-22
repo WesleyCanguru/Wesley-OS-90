@@ -3,10 +3,12 @@ import { Activity, Brain, TrendingUp, AlertTriangle, ChevronRight, Zap, Calendar
 import { useUser } from "@/hooks/useUser";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getCycleInfo } from "@/lib/cycle";
 
 export function Dashboard() {
   const navigate = useNavigate();
   const user = useUser();
+  const { currentDay, totalDays } = getCycleInfo();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     corpo: 0,
@@ -92,7 +94,7 @@ export function Dashboard() {
           </button>
           <div className="md:text-right bg-surface px-6 py-3 rounded-2xl border border-surface-border shadow-sm">
             <div className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Ciclo Atual</div>
-            <div className="text-3xl font-serif font-bold text-primary">DIA 18 <span className="text-text-muted text-xl font-sans font-normal">/ 90</span></div>
+            <div className="text-3xl font-serif font-bold text-primary">DIA {currentDay} <span className="text-text-muted text-xl font-sans font-normal">/ {totalDays}</span></div>
           </div>
         </div>
       </header>

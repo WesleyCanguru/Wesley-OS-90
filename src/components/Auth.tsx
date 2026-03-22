@@ -11,11 +11,11 @@ export const Auth = ({ onLogin }: { onLogin: (user: { name: string }) => void })
     
     if (accessKey === 'Wesley123') {
       const user = { name: 'Wesley' };
-      localStorage.setItem('w90_user', JSON.stringify(user));
+      localStorage.setItem('w12_user', JSON.stringify(user));
       onLogin(user);
     } else if (accessKey === 'Sarah123') {
       const user = { name: 'Sarah' };
-      localStorage.setItem('w90_user', JSON.stringify(user));
+      localStorage.setItem('w12_user', JSON.stringify(user));
       onLogin(user);
     } else {
       alert('Chave de acesso inválida!');
@@ -31,7 +31,7 @@ export const Auth = ({ onLogin }: { onLogin: (user: { name: string }) => void })
           </div>
         </div>
         
-        <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2 text-center">W90 Challenge</h1>
+        <h1 className="text-3xl font-serif font-bold text-neutral-900 mb-2 text-center">12 Week Challenge</h1>
         <p className="text-neutral-500 text-center mb-10 text-sm">Digite sua chave de acesso pessoal</p>
         
         <form onSubmit={handleAccess} className="space-y-6">
