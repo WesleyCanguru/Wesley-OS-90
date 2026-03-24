@@ -70,6 +70,6 @@ export async function calculateMacros(mealDescription: string) {
     return null;
   } catch (error) {
     console.error("Error calculating macros:", error);
-    return null;
+    throw error;
   }
 }

@@ -175,9 +175,9 @@ export function Corpo() {
       } else {
         alert("Não foi possível calcular os macros. Tente novamente.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao salvar refeição:", error);
-      alert("Erro ao salvar refeição.");
+      alert(`Erro ao salvar refeição: ${error.message || 'Erro desconhecido'}`);
     } finally {
       setIsCalculatingMacros(false);
     }
