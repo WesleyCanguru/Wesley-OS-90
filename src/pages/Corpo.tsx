@@ -163,10 +163,10 @@ export function Corpo() {
         const { error } = await supabase.from('food_logs').insert([{
           user_name: user.name,
           name: `[${mealTime}] ${macros.name || "Refeição"}`,
-          calories: macros.calories,
-          protein: macros.protein,
-          carbs: macros.carbs,
-          fat: macros.fats
+          calories: Math.round(Number(macros.calories)),
+          protein: Math.round(Number(macros.protein)),
+          carbs: Math.round(Number(macros.carbs)),
+          fat: Math.round(Number(macros.fats))
         }]);
         if (error) throw error;
         setIsMealModalOpen(false);
