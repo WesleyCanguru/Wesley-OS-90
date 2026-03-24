@@ -21,7 +21,8 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer 
+  ResponsiveContainer,
+  Legend
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/Modal";
@@ -47,7 +48,7 @@ export function Corpo() {
   const [aiFeedback, setAiFeedback] = useState<string | null>(null);
   const [generatingFeedback, setGeneratingFeedback] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [chartMetric, setChartMetric] = useState<"peso" | "bf" | "muscle">("peso");
+  const [chartTab, setChartTab] = useState<"composicao" | "medidas">("composicao");
   
   const [weight, setWeight] = useState<number>(0);
   const [weightHistory, setWeightHistory] = useState<any[]>([]);
@@ -59,12 +60,15 @@ export function Corpo() {
   const [newProtein, setNewProtein] = useState("");
   const [newCarbs, setNewCarbs] = useState("");
   const [newFats, setNewFats] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedMeasurementDate, setSelectedMeasurementDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     if (user) {
       fetchBodyData();
+      setAiFeedback(null); // Clear feedback when date changes
     }
-  }, [user]);
+  }, [user, selectedDate]);
 
   const fetchBodyData = async () => {
     if (!user) return;
@@ -78,24 +82,35 @@ export function Corpo() {
 
       if (stats && stats.length > 0) {
         const history = stats.map(s => ({
-          day: new Date(s.created_at).toLocaleDateString('pt-BR', { day: '2-digit' }),
+          day: new Date(s.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
           peso: s.weight,
           photo_url: s.measurements?.photo_url,
           bf: s.measurements?.bf ? parseFloat(s.measurements.bf) : null,
-          muscle: s.measurements?.muscle ? parseFloat(s.measurements.muscle) : null
+          muscle: s.measurements?.muscle ? parseFloat(s.measurements.muscle) : null,
+          waist: s.measurements?.waist ? parseFloat(s.measurements.waist) : null,
+          chest: s.measurements?.chest ? parseFloat(s.measurements.chest) : null,
+          armL: s.measurements?.armL ? parseFloat(s.measurements.armL) : null,
+          armR: s.measurements?.armR ? parseFloat(s.measurements.armR) : null,
+          thighL: s.measurements?.thighL ? parseFloat(s.measurements.thighL) : null,
+          thighR: s.measurements?.thighR ? parseFloat(s.measurements.thighR) : null,
         }));
         setWeightHistory(history);
         setWeight(stats[stats.length - 1].weight);
         setMeasurements(stats[stats.length - 1].measurements || {});
       }
 
-      // 2. Fetch Food Logs for today
-      const today = new Date().toISOString().split('T')[0];
+      // 2. Fetch Food Logs for selectedDate
+      const startOfDay = new Date(selectedDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(selectedDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
       const { data: foods, error: foodsError } = await supabase
         .from('food_logs')
         .select('*')
         .eq('user_name', user.name)
-        .gte('created_at', `${today}T00:00:00Z`);
+        .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString());
 
       if (foods) {
         setFoodLogs(foods);
@@ -129,9 +144,33 @@ export function Corpo() {
     }
   };
 
+  const handleSaveMeasurements = async () => {
+    if (!user) return;
+    try {
+      const insertDate = new Date(selectedMeasurementDate);
+      insertDate.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
+
+      await supabase.from('body_stats').insert([{ 
+        user_name: user.name, 
+        weight: weight, 
+        measurements: measurements,
+        created_at: insertDate.toISOString()
+      }]);
+      alert("Medidas salvas com sucesso!");
+      setIsMeasurementsModalOpen(false);
+      fetchBodyData();
+    } catch (e) {
+      alert("Erro ao salvar medidas.");
+    }
+  };
+
   const handleSaveFood = async () => {
     if (!newFoodAmount || !user) return;
     try {
+      const now = new Date();
+      const isToday = selectedDate.toDateString() === now.toDateString();
+      const insertDate = isToday ? now : new Date(selectedDate.setHours(12, 0, 0, 0));
+
       const { error } = await supabase
         .from('food_logs')
         .insert([{
@@ -140,7 +179,8 @@ export function Corpo() {
           calories: selectedMacro === 'Calorias' ? parseInt(newFoodAmount) : (selectedMacro === 'Gorduras' ? parseFloat(newFoodAmount) * 9 : parseFloat(newFoodAmount) * 4),
           protein: selectedMacro === 'Proteínas' ? parseFloat(newFoodAmount) : 0,
           carbs: selectedMacro === 'Carboidratos' ? parseFloat(newFoodAmount) : 0,
-          fat: selectedMacro === 'Gorduras' ? parseFloat(newFoodAmount) : 0
+          fat: selectedMacro === 'Gorduras' ? parseFloat(newFoodAmount) : 0,
+          created_at: insertDate.toISOString()
         }]);
 
       if (error) throw error;
@@ -160,13 +200,18 @@ export function Corpo() {
     try {
       const macros = await calculateMacros(mealDescription);
       if (macros) {
+        const now = new Date();
+        const isToday = selectedDate.toDateString() === now.toDateString();
+        const insertDate = isToday ? now : new Date(selectedDate.setHours(12, 0, 0, 0));
+
         const { error } = await supabase.from('food_logs').insert([{
           user_name: user.name,
           name: `[${mealTime}] ${macros.name || "Refeição"}`,
           calories: Math.round(Number(macros.calories)),
           protein: Math.round(Number(macros.protein)),
           carbs: Math.round(Number(macros.carbs)),
-          fat: Math.round(Number(macros.fats))
+          fat: Math.round(Number(macros.fats)),
+          created_at: insertDate.toISOString()
         }]);
         if (error) throw error;
         setIsMealModalOpen(false);
@@ -249,20 +294,35 @@ export function Corpo() {
     alert(`Sincronização de "${metric}" com Apple Health em desenvolvimento.`);
   };
 
+  const nutritionTargets = user?.name === 'Sarah' 
+    ? { calories: 1200, protein: 96, carbs: 135, fats: 30 }
+    : { calories: 2200, protein: 180, carbs: 170, fats: 80 }; // Wesley's targets
+
+  useEffect(() => {
+    const generateFeedback = async () => {
+      if (viewingMeals && !aiFeedback && foodLogs.length > 0 && !generatingFeedback) {
+        setGeneratingFeedback(true);
+        try {
+          const { generateDailyFeedback } = await import('@/services/geminiService');
+          const feedback = await generateDailyFeedback(foodLogs, nutritionTargets);
+          setAiFeedback(feedback);
+        } catch (error) {
+          console.error("Erro ao gerar feedback:", error);
+        } finally {
+          setGeneratingFeedback(false);
+        }
+      }
+    };
+    generateFeedback();
+  }, [viewingMeals, foodLogs, aiFeedback, generatingFeedback, nutritionTargets]);
+
   const handleLogFood = (macro: string) => {
     setSelectedMacro(macro);
     setIsFoodModalOpen(true);
   };
 
-  const handleViewMeals = async () => {
+  const handleViewMeals = () => {
     setViewingMeals(true);
-    if (!aiFeedback && foodLogs.length > 0) {
-      setGeneratingFeedback(true);
-      const { generateDailyFeedback } = await import('@/services/geminiService');
-      const feedback = await generateDailyFeedback(foodLogs, nutritionTargets);
-      setAiFeedback(feedback);
-      setGeneratingFeedback(false);
-    }
   };
 
   if (loading) {
@@ -277,10 +337,6 @@ export function Corpo() {
   const totalProteins = foodLogs.reduce((acc, curr) => acc + (curr.protein || 0), 0);
   const totalCarbs = foodLogs.reduce((acc, curr) => acc + (curr.carbs || 0), 0);
   const totalFats = foodLogs.reduce((acc, curr) => acc + (curr.fat || 0), 0);
-
-  const nutritionTargets = user?.name === 'Sarah' 
-    ? { calories: 1200, protein: 96, carbs: 135, fats: 30 }
-    : { calories: 2200, protein: 180, carbs: 170, fats: 80 }; // Wesley's targets
 
   const photos = weightHistory.filter(h => h.photo_url).map(h => ({
     day: h.day,
@@ -302,17 +358,38 @@ export function Corpo() {
 
     return (
       <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-        <header className="flex items-center justify-between">
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <button onClick={() => setViewingMeals(false)} className="text-text-muted hover:text-primary flex items-center gap-2 mb-2">
               <ChevronRight className="w-4 h-4 rotate-180" />
               Voltar
             </button>
-            <h1 className="text-3xl font-serif font-semibold text-primary">Refeições de Hoje</h1>
+            <div className="flex items-center gap-4">
+              <h1 className="text-3xl font-serif font-semibold text-primary">Refeições</h1>
+              <div className="flex items-center gap-2 bg-white rounded-full px-3 py-1.5 shadow-sm border border-border">
+                <button onClick={() => {
+                  const prev = new Date(selectedDate);
+                  prev.setDate(prev.getDate() - 1);
+                  setSelectedDate(prev);
+                }} className="p-1 hover:bg-background rounded-full text-text-muted hover:text-primary transition-colors">
+                  <ChevronRight className="w-4 h-4 rotate-180" />
+                </button>
+                <span className="text-sm font-medium text-text-primary min-w-[100px] text-center">
+                  {selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                </span>
+                <button onClick={() => {
+                  const next = new Date(selectedDate);
+                  next.setDate(next.getDate() + 1);
+                  setSelectedDate(next);
+                }} className="p-1 hover:bg-background rounded-full text-text-muted hover:text-primary transition-colors" disabled={selectedDate.toDateString() === new Date().toDateString()}>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
           <button 
             onClick={() => setIsMealModalOpen(true)}
-            className="bg-primary text-white px-5 py-2.5 rounded-full font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-md"
+            className="bg-primary text-white px-5 py-2.5 rounded-full font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-md self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
             Nova Refeição
@@ -348,7 +425,7 @@ export function Corpo() {
         <div className="space-y-6">
           {Object.keys(groupedMeals).length === 0 ? (
             <div className="py-12 text-center text-text-muted bg-surface rounded-3xl border border-surface-border">
-              Nenhuma refeição registrada hoje.
+              Nenhuma refeição registrada {selectedDate.toDateString() === new Date().toDateString() ? "hoje" : "neste dia"}.
             </div>
           ) : (
             Object.entries(groupedMeals).map(([time, meals]) => (
@@ -533,15 +610,26 @@ export function Corpo() {
           <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
             <div className="flex items-center justify-between mb-8">
               <h2 className="font-serif text-2xl font-semibold text-secondary">Evolução</h2>
-              <select 
-                value={chartMetric}
-                onChange={(e) => setChartMetric(e.target.value as any)}
-                className="bg-background border border-surface-border text-sm rounded-lg px-3 py-1.5 outline-none focus:border-primary"
-              >
-                <option value="peso">Peso (kg)</option>
-                <option value="bf">Gordura (%)</option>
-                <option value="muscle">Massa Muscular (kg)</option>
-              </select>
+              <div className="flex bg-background border border-surface-border rounded-lg p-1">
+                <button 
+                  onClick={() => setChartTab("composicao")}
+                  className={cn(
+                    "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
+                    chartTab === "composicao" ? "bg-white shadow-sm text-secondary" : "text-text-muted hover:text-secondary"
+                  )}
+                >
+                  Composição
+                </button>
+                <button 
+                  onClick={() => setChartTab("medidas")}
+                  className={cn(
+                    "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
+                    chartTab === "medidas" ? "bg-white shadow-sm text-secondary" : "text-text-muted hover:text-secondary"
+                  )}
+                >
+                  Medidas
+                </button>
+              </div>
             </div>
             
             <div className="h-[300px] w-full">
@@ -556,7 +644,7 @@ export function Corpo() {
                     dy={10}
                   />
                   <YAxis 
-                    domain={['dataMin - 1', 'dataMax + 1']} 
+                    domain={['auto', 'auto']} 
                     axisLine={false} 
                     tickLine={false} 
                     tick={{ fill: '#6B7280', fontSize: 12, fontFamily: 'JetBrains Mono' }}
@@ -571,17 +659,49 @@ export function Corpo() {
                     }}
                     itemStyle={{ color: '#00e5ff', fontFamily: 'JetBrains Mono' }}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey={chartMetric} 
-                    stroke="#0A2540" 
-                    strokeWidth={3}
-                    dot={{ fill: '#0A2540', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, fill: '#00e5ff', stroke: '#0A2540' }}
-                    connectNulls
-                  />
+                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                  
+                  {chartTab === "composicao" ? (
+                    <>
+                      <Line name="Peso (kg)" type="monotone" dataKey="peso" stroke="#0A2540" strokeWidth={3} dot={{ fill: '#0A2540', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} connectNulls />
+                      <Line name="Músculo (kg)" type="monotone" dataKey="muscle" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} connectNulls />
+                      <Line name="Gordura (%)" type="monotone" dataKey="bf" stroke="#f59e0b" strokeWidth={3} dot={{ fill: '#f59e0b', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} connectNulls />
+                    </>
+                  ) : (
+                    <>
+                      <Line name="Cintura" type="monotone" dataKey="waist" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                      <Line name="Peito" type="monotone" dataKey="chest" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                      <Line name="Braço (E)" type="monotone" dataKey="armL" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                      <Line name="Braço (D)" type="monotone" dataKey="armR" stroke="#d946ef" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                      <Line name="Coxa (E)" type="monotone" dataKey="thighL" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                      <Line name="Coxa (D)" type="monotone" dataKey="thighR" stroke="#14b8a6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                    </>
+                  )}
                 </LineChart>
               </ResponsiveContainer>
+            </div>
+            
+            {/* Resumo de Medidas */}
+            <div className="mt-8 pt-6 border-t border-surface-border">
+              <h3 className="text-sm font-semibold text-secondary mb-4 uppercase tracking-wider">Resumo Atual</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-background p-3 rounded-xl border border-surface-border">
+                  <div className="text-xs text-text-muted mb-1">Cintura</div>
+                  <div className="font-serif font-bold text-secondary">{measurements.waist || '--'} <span className="text-xs font-sans font-normal text-text-muted">cm</span></div>
+                </div>
+                <div className="bg-background p-3 rounded-xl border border-surface-border">
+                  <div className="text-xs text-text-muted mb-1">Peito</div>
+                  <div className="font-serif font-bold text-secondary">{measurements.chest || '--'} <span className="text-xs font-sans font-normal text-text-muted">cm</span></div>
+                </div>
+                <div className="bg-background p-3 rounded-xl border border-surface-border">
+                  <div className="text-xs text-text-muted mb-1">Braços (E/D)</div>
+                  <div className="font-serif font-bold text-secondary">{measurements.armL || '--'} / {measurements.armR || '--'} <span className="text-xs font-sans font-normal text-text-muted">cm</span></div>
+                </div>
+                <div className="bg-background p-3 rounded-xl border border-surface-border">
+                  <div className="text-xs text-text-muted mb-1">Coxas (E/D)</div>
+                  <div className="font-serif font-bold text-secondary">{measurements.thighL || '--'} / {measurements.thighR || '--'} <span className="text-xs font-sans font-normal text-text-muted">cm</span></div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -630,7 +750,9 @@ export function Corpo() {
                 <div className="p-2 bg-background border border-surface-border rounded-xl">
                   <Utensils className="w-5 h-5 text-primary" />
                 </div>
-                <h2 className="font-serif text-2xl font-semibold text-secondary">Nutrição Hoje</h2>
+                <h2 className="font-serif text-2xl font-semibold text-secondary">
+                  Nutrição {selectedDate.toDateString() === new Date().toDateString() ? "Hoje" : selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                </h2>
               </div>
               <div className="flex items-center gap-2">
                 <button 
@@ -656,7 +778,7 @@ export function Corpo() {
               <Droplets className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
               <div>
                 <div className="text-sm font-semibold text-secondary">Água: 2.0L / 3.0L</div>
-                <div className="text-xs text-text-muted mt-1">Você está no ritmo certo para bater a meta hoje.</div>
+                <div className="text-xs text-text-muted mt-1">Você está no ritmo certo para bater a meta {selectedDate.toDateString() === new Date().toDateString() ? "hoje" : "neste dia"}.</div>
               </div>
             </div>
           </div>
@@ -747,6 +869,16 @@ export function Corpo() {
         title="Medidas Corporais"
       >
         <div className="space-y-6">
+          <div className="flex items-center justify-between bg-background p-4 rounded-2xl border border-surface-border">
+            <span className="text-sm font-medium text-secondary">Data da Medição</span>
+            <input 
+              type="date" 
+              value={selectedMeasurementDate}
+              onChange={(e) => setSelectedMeasurementDate(e.target.value)}
+              className="bg-transparent border-none outline-none text-primary font-medium focus:ring-0"
+              max={new Date().toISOString().split('T')[0]}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <MeasurementInput label="Cintura" unit="cm" value={measurements.waist} onChange={(v) => setMeasurements({...measurements, waist: v})} />
             <MeasurementInput label="Peito" unit="cm" value={measurements.chest} onChange={(v) => setMeasurements({...measurements, chest: v})} />
@@ -758,17 +890,7 @@ export function Corpo() {
             <MeasurementInput label="Massa Muscular" unit="kg" value={measurements.muscle} onChange={(v) => setMeasurements({...measurements, muscle: v})} />
           </div>
           <button 
-            onClick={async () => {
-              if (!user) return;
-              try {
-                await supabase.from('body_stats').insert([{ user_name: user.name, weight: weight, measurements: measurements }]);
-                alert("Medidas salvas com sucesso!");
-                setIsMeasurementsModalOpen(false);
-                fetchBodyData();
-              } catch (e) {
-                alert("Erro ao salvar medidas.");
-              }
-            }}
+            onClick={handleSaveMeasurements}
             className="w-full p-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md"
           >
             Salvar Todas as Medidas
