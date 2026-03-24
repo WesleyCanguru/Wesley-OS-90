@@ -31,7 +31,7 @@ export async function generateDailyFeedback(foodLogs: any[], targets: any) {
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-preview",
+      model: "gemini-3-flash-preview",
       contents: prompt,
     });
 
@@ -45,7 +45,7 @@ export async function calculateMacros(mealDescription: string) {
   try {
     const ai = getAIClient();
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-preview",
+      model: "gemini-3-flash-preview",
       contents: `Calculate the nutritional macros for the following meal: "${mealDescription}". Return ONLY a JSON object with the following properties: name (a short 3-5 word summary of the meal), calories (number), protein (number in grams), carbs (number in grams), fats (number in grams). Do not include any markdown formatting or other text.`,
       config: {
         responseMimeType: "application/json",
