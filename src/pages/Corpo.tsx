@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Plus,
   History,
-  Loader2
+  Loader2,
+  Sparkles
 } from "lucide-react";
 import { 
   LineChart, 
@@ -38,9 +39,13 @@ export function Corpo() {
   const [isFoodModalOpen, setIsFoodModalOpen] = useState(false);
   const [isMealModalOpen, setIsMealModalOpen] = useState(false);
   const [mealDescription, setMealDescription] = useState("");
+  const [mealTime, setMealTime] = useState("Café da Manhã");
   const [isCalculatingMacros, setIsCalculatingMacros] = useState(false);
   const [selectedMacro, setSelectedMacro] = useState<string | null>(null);
   const [viewingGallery, setViewingGallery] = useState(false);
+  const [viewingMeals, setViewingMeals] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState<string | null>(null);
+  const [generatingFeedback, setGeneratingFeedback] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [chartMetric, setChartMetric] = useState<"peso" | "bf" | "muscle">("peso");
   
@@ -131,10 +136,11 @@ export function Corpo() {
         .from('food_logs')
         .insert([{
           user_name: user.name,
-          meal_type: selectedMacro,
-          calories: selectedMacro === 'Calorias' ? parseInt(newFoodAmount) : 0,
-          amount: selectedMacro !== 'Calorias' ? parseFloat(newFoodAmount) : 0,
-          unit: selectedMacro === 'Calorias' ? 'kcal' : 'g'
+          name: `[Avulso] ${selectedMacro}`,
+          calories: selectedMacro === 'Calorias' ? parseInt(newFoodAmount) : (selectedMacro === 'Gorduras' ? parseFloat(newFoodAmount) * 9 : parseFloat(newFoodAmount) * 4),
+          protein: selectedMacro === 'Proteínas' ? parseFloat(newFoodAmount) : 0,
+          carbs: selectedMacro === 'Carboidratos' ? parseFloat(newFoodAmount) : 0,
+          fat: selectedMacro === 'Gorduras' ? parseFloat(newFoodAmount) : 0
         }]);
 
       if (error) throw error;
@@ -154,12 +160,14 @@ export function Corpo() {
     try {
       const macros = await calculateMacros(mealDescription);
       if (macros) {
-        const { error } = await supabase.from('food_logs').insert([
-          { user_name: user.name, meal_type: 'Calorias', calories: macros.calories, amount: 0, unit: 'kcal' },
-          { user_name: user.name, meal_type: 'Proteínas', calories: 0, amount: macros.protein, unit: 'g' },
-          { user_name: user.name, meal_type: 'Carboidratos', calories: 0, amount: macros.carbs, unit: 'g' },
-          { user_name: user.name, meal_type: 'Gorduras', calories: 0, amount: macros.fats, unit: 'g' }
-        ]);
+        const { error } = await supabase.from('food_logs').insert([{
+          user_name: user.name,
+          name: `[${mealTime}] ${macros.name || "Refeição"}`,
+          calories: macros.calories,
+          protein: macros.protein,
+          carbs: macros.carbs,
+          fat: macros.fats
+        }]);
         if (error) throw error;
         setIsMealModalOpen(false);
         setMealDescription("");
@@ -246,6 +254,17 @@ export function Corpo() {
     setIsFoodModalOpen(true);
   };
 
+  const handleViewMeals = async () => {
+    setViewingMeals(true);
+    if (!aiFeedback && foodLogs.length > 0) {
+      setGeneratingFeedback(true);
+      const { generateDailyFeedback } = await import('@/services/geminiService');
+      const feedback = await generateDailyFeedback(foodLogs, nutritionTargets);
+      setAiFeedback(feedback);
+      setGeneratingFeedback(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -255,19 +274,160 @@ export function Corpo() {
   }
 
   const totalCalories = foodLogs.reduce((acc, curr) => acc + (curr.calories || 0), 0);
-  const totalProteins = foodLogs.filter(f => f.meal_type === 'Proteínas').reduce((acc, curr) => acc + (curr.amount || 0), 0);
-  const totalCarbs = foodLogs.filter(f => f.meal_type === 'Carboidratos').reduce((acc, curr) => acc + (curr.amount || 0), 0);
-  const totalFats = foodLogs.filter(f => f.meal_type === 'Gorduras').reduce((acc, curr) => acc + (curr.amount || 0), 0);
+  const totalProteins = foodLogs.reduce((acc, curr) => acc + (curr.protein || 0), 0);
+  const totalCarbs = foodLogs.reduce((acc, curr) => acc + (curr.carbs || 0), 0);
+  const totalFats = foodLogs.reduce((acc, curr) => acc + (curr.fat || 0), 0);
 
   const nutritionTargets = user?.name === 'Sarah' 
     ? { calories: 1200, protein: 96, carbs: 135, fats: 30 }
-    : { calories: 1980, protein: 160, carbs: 180, fats: 60 }; // Wesley's targets
+    : { calories: 2200, protein: 180, carbs: 170, fats: 80 }; // Wesley's targets
 
   const photos = weightHistory.filter(h => h.photo_url).map(h => ({
     day: h.day,
     url: h.photo_url,
     weight: h.peso
   }));
+
+  if (viewingMeals) {
+    // Group meals by meal time (prefix in name)
+    const groupedMeals = foodLogs.reduce((acc, log) => {
+      const match = log.name?.match(/^\[(.*?)\]\s*(.*)$/);
+      const time = match ? match[1] : 'Outros';
+      const desc = match ? match[2] : log.name;
+      
+      if (!acc[time]) acc[time] = [];
+      acc[time].push({ ...log, desc });
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+        <header className="flex items-center justify-between">
+          <div>
+            <button onClick={() => setViewingMeals(false)} className="text-text-muted hover:text-primary flex items-center gap-2 mb-2">
+              <ChevronRight className="w-4 h-4 rotate-180" />
+              Voltar
+            </button>
+            <h1 className="text-3xl font-serif font-semibold text-primary">Refeições de Hoje</h1>
+          </div>
+          <button 
+            onClick={() => setIsMealModalOpen(true)}
+            className="bg-primary text-white px-5 py-2.5 rounded-full font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            Nova Refeição
+          </button>
+        </header>
+
+        {/* AI Feedback Section */}
+        <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -z-10" />
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-6 h-6 text-primary" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-serif font-semibold text-secondary mb-2">Feedback da Nutri (IA)</h3>
+              {generatingFeedback ? (
+                <div className="flex items-center gap-2 text-text-muted text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Analisando seu dia...
+                </div>
+              ) : aiFeedback ? (
+                <div className="text-secondary text-sm leading-relaxed whitespace-pre-wrap">
+                  {aiFeedback}
+                </div>
+              ) : (
+                <p className="text-text-muted text-sm">Adicione refeições para receber um feedback.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Meals List */}
+        <div className="space-y-6">
+          {Object.keys(groupedMeals).length === 0 ? (
+            <div className="py-12 text-center text-text-muted bg-surface rounded-3xl border border-surface-border">
+              Nenhuma refeição registrada hoje.
+            </div>
+          ) : (
+            Object.entries(groupedMeals).map(([time, meals]) => (
+              <div key={time} className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm">
+                <h3 className="text-lg font-serif font-semibold text-secondary mb-4 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-primary" />
+                  {time}
+                </h3>
+                <div className="space-y-4">
+                  {meals.map((meal, i) => (
+                    <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-background rounded-2xl border border-surface-border">
+                      <div className="flex-1">
+                        <p className="font-medium text-secondary">{meal.desc}</p>
+                        <div className="flex flex-wrap gap-3 mt-2 text-xs text-text-muted">
+                          <span className="flex items-center gap-1"><Flame className="w-3 h-3 text-secondary" /> {meal.calories} kcal</span>
+                          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-primary" /> {meal.protein}g prot</span>
+                          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-400" /> {meal.carbs}g carb</span>
+                          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500" /> {meal.fat}g gord</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <Modal 
+          isOpen={isMealModalOpen} 
+          onClose={() => !isCalculatingMacros && setIsMealModalOpen(false)} 
+          title="Registrar Refeição (IA)"
+        >
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-text-muted uppercase tracking-widest px-1">Qual refeição?</label>
+              <select
+                value={mealTime}
+                onChange={(e) => setMealTime(e.target.value)}
+                disabled={isCalculatingMacros}
+                className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium text-text-main"
+              >
+                <option value="Café da Manhã">Café da Manhã</option>
+                <option value="Almoço">Almoço</option>
+                <option value="Café da Tarde">Café da Tarde</option>
+                <option value="Jantar">Jantar</option>
+                <option value="Lanches">Lanches/Outros</option>
+              </select>
+            </div>
+
+            <div className="p-1 bg-background rounded-2xl border border-surface-border">
+              <textarea 
+                placeholder="Ex: 80g de arroz, 40g de feijão, 130g de frango grelhado..." 
+                value={mealDescription}
+                onChange={(e) => setMealDescription(e.target.value)}
+                className="w-full h-32 bg-transparent border-none outline-none p-4 text-secondary resize-none focus:ring-0"
+                disabled={isCalculatingMacros}
+              />
+            </div>
+            
+            <button 
+              onClick={handleSaveMeal}
+              disabled={isCalculatingMacros || !mealDescription}
+              className="w-full p-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isCalculatingMacros ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Calculando Macros...
+                </>
+              ) : (
+                "Calcular e Salvar"
+              )}
+            </button>
+          </div>
+        </Modal>
+      </div>
+    );
+  }
 
   if (viewingGallery) {
     return (
@@ -465,20 +625,21 @@ export function Corpo() {
           
           {/* Nutrition Macros */}
           <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-background border border-surface-border rounded-xl">
                   <Utensils className="w-5 h-5 text-primary" />
                 </div>
                 <h2 className="font-serif text-2xl font-semibold text-secondary">Nutrição Hoje</h2>
               </div>
-              <button 
-                onClick={() => setIsMealModalOpen(true)}
-                className="bg-primary/10 text-primary px-4 py-2 rounded-xl text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Refeição
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleViewMeals}
+                  className="bg-primary/10 text-primary px-4 py-2 rounded-xl text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-2"
+                >
+                  Ver Refeições
+                </button>
+              </div>
             </div>
 
             <div className="space-y-6">
@@ -659,39 +820,6 @@ export function Corpo() {
             className="w-full p-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md"
           >
             Confirmar Registro
-          </button>
-        </div>
-      </Modal>
-
-      <Modal 
-        isOpen={isMealModalOpen} 
-        onClose={() => !isCalculatingMacros && setIsMealModalOpen(false)} 
-        title="Registrar Refeição (IA)"
-      >
-        <div className="space-y-6">
-          <div className="p-1 bg-background rounded-2xl border border-surface-border">
-            <textarea 
-              placeholder="Ex: Café da manhã: 80g de arroz, 40g de feijão, 130g de frango grelhado..." 
-              value={mealDescription}
-              onChange={(e) => setMealDescription(e.target.value)}
-              className="w-full h-32 bg-transparent border-none outline-none p-4 text-secondary resize-none focus:ring-0"
-              disabled={isCalculatingMacros}
-            />
-          </div>
-          
-          <button 
-            onClick={handleSaveMeal}
-            disabled={isCalculatingMacros || !mealDescription}
-            className="w-full p-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {isCalculatingMacros ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Calculando Macros...
-              </>
-            ) : (
-              "Calcular e Salvar"
-            )}
           </button>
         </div>
       </Modal>
