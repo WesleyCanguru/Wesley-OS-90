@@ -718,14 +718,24 @@ export function Hoje() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Unidade</label>
-                    <input 
+                    <select 
                       required
-                      type="text" 
                       value={newHabit.unit || ''}
                       onChange={e => setNewHabit({...newHabit, unit: e.target.value})}
-                      className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                      placeholder="Ex: ml, pág, min"
-                    />
+                      className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium text-text-main"
+                    >
+                      <option value="" disabled>Selecione</option>
+                      <option value="ml">ml</option>
+                      <option value="litros">litros</option>
+                      <option value="minutos">minutos</option>
+                      <option value="horas">horas</option>
+                      <option value="páginas">páginas</option>
+                      <option value="km">km</option>
+                      <option value="passos">passos</option>
+                      <option value="vezes">vezes</option>
+                      <option value="kcal">kcal</option>
+                      <option value="g">gramas</option>
+                    </select>
                   </div>
                 </div>
               )}
