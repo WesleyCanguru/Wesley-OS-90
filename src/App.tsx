@@ -9,9 +9,9 @@ import { supabase, supabaseUrl, supabaseAnonKey } from "./lib/supabase";
 import { Layout } from "./components/Layout";
 import { Dashboard } from "./pages/Dashboard";
 import { Hoje } from "./pages/Hoje";
-import { Ontem } from "./pages/Ontem";
 import { Corpo } from "./pages/Corpo";
 import { Alma } from "./pages/Alma";
+import { Treinos } from "./pages/Treinos";
 import { Agencia } from "./pages/Agencia";
 import { Metas } from "./pages/Metas";
 import { Auth } from "./components/Auth";
@@ -59,9 +59,9 @@ export default function App() {
         <Route path="/" element={<Layout user={user} onLogout={() => setUser(null)} />}>
           <Route index element={<Dashboard />} />
           <Route path="hoje" element={<Hoje />} />
-          <Route path="ontem" element={<Ontem />} />
           <Route path="corpo" element={<Corpo />} />
           <Route path="alma" element={<Alma />} />
+          <Route path="treinos" element={<Treinos />} />
           <Route path="agencia" element={<Agencia />} />
           <Route path="metas" element={<Metas />} />
           <Route path="*" element={<Navigate to="/" replace />} />

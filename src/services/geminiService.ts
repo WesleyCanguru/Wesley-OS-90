@@ -4,8 +4,8 @@ let aiClient: GoogleGenAI | null = null;
 
 function getAIClient(): GoogleGenAI {
   if (!aiClient) {
-    // Check import.meta.env for Vite/Vercel deployments, fallback to process.env
-    const key = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    // Check import.meta.env for Vite/Vercel deployments
+    const key = (import.meta as any).env.VITE_GEMINI_API_KEY;
     if (!key) {
       throw new Error("GEMINI_API_KEY environment variable is missing. Please check your environment variables.");
     }

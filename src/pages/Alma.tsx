@@ -95,13 +95,13 @@ export function Alma() {
         <MetricCard label="Média Humor" value={user?.name === 'Wesley' ? "4.1" : "0"} subtext="Estável" icon={Smile} color="text-blue-500" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
         {/* Left Column: Habits & Reflections */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="space-y-8">
           
           {/* Habit Tracker */}
-          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm overflow-x-auto">
+          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm overflow-x-auto h-full">
             <h2 className="font-serif text-2xl font-semibold text-secondary mb-6">Consistência de Hábitos</h2>
             
             <div className="min-w-[500px]">

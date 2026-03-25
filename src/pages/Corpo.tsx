@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Scale, 
   Camera, 
   Flame, 
   Utensils, 
   Activity, 
-  Footprints, 
   TrendingDown,
   Droplets,
   ChevronRight,
@@ -55,6 +54,12 @@ export function Corpo() {
   const [measurements, setMeasurements] = useState<any>({});
   const [foodLogs, setFoodLogs] = useState<any[]>([]);
   
+  // Habit Tracking State
+  const [habits, setHabits] = useState<any[]>([]);
+  const [weeklyLogs, setWeeklyLogs] = useState<Record<string, any>>({});
+  const [weekDates, setWeekDates] = useState<Date[]>([]);
+  const { startDate } = getCycleInfo();
+
   const [newWeight, setNewWeight] = useState("");
   const [newFoodAmount, setNewFoodAmount] = useState("");
   const [newProtein, setNewProtein] = useState("");
@@ -66,9 +71,87 @@ export function Corpo() {
   useEffect(() => {
     if (user) {
       fetchBodyData();
+      fetchHabitData();
       setAiFeedback(null); // Clear feedback when date changes
     }
   }, [user, selectedDate]);
+
+  // Configura as datas da semana atual (Segunda a Domingo)
+  useEffect(() => {
+    const dates = [];
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const diffToMonday = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    const monday = new Date(today.setDate(diffToMonday));
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      dates.push(date);
+    }
+    setWeekDates(dates);
+  }, []);
+
+  const fetchHabitData = async () => {
+    if (!user) return;
+    try {
+      const { data: habitsData } = await supabase
+        .from('habits')
+        .select('*')
+        .eq('user_name', user.name);
+      
+      setHabits(habitsData || []);
+
+      const todayForFetch = new Date();
+      const dayOfWeek = todayForFetch.getDay();
+      const diffToMonday = todayForFetch.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      const monday = new Date(todayForFetch);
+      monday.setDate(diffToMonday);
+      
+      const fetchStartDate = startDate < monday ? startDate : monday;
+      const localFetchDate = new Date(fetchStartDate.getTime() - (fetchStartDate.getTimezoneOffset() * 60000));
+
+      const { data: logsData } = await supabase
+        .from('habit_logs')
+        .select('*')
+        .eq('user_name', user.name)
+        .gte('date', localFetchDate.toISOString().split('T')[0]);
+
+      const logsMap: Record<string, any> = {};
+      logsData?.forEach(log => {
+        if (!logsMap[log.habit_id]) logsMap[log.habit_id] = {};
+        logsMap[log.habit_id][log.date] = log;
+      });
+      setWeeklyLogs(logsMap);
+    } catch (error) {
+      console.error("Erro ao buscar hábitos:", error);
+    }
+  };
+
+  const getLogForDate = (habitId: string, date: Date) => {
+    const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+    const dateStr = localDate.toISOString().split('T')[0];
+    return weeklyLogs[habitId]?.[dateStr];
+  };
+
+  const calculateHabitWeeklyPercentage = (habit: any) => {
+    let completedDays = 0;
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    weekDates.forEach(date => {
+      const log = getLogForDate(habit.id, date);
+      const isFuture = date > today;
+
+      if (habit.type === 'negative') {
+        if (!isFuture && (!log || log.completed)) completedDays++;
+      } else {
+        if (log?.completed) completedDays++;
+      }
+    });
+    
+    return Math.min(100, Math.round((completedDays / habit.frequency_per_week) * 100));
+  };
 
   const fetchBodyData = async () => {
     if (!user) return;
@@ -289,11 +372,6 @@ export function Corpo() {
     setViewingGallery(true);
   };
 
-  const handleSyncHealth = (metric: string) => {
-    console.log(`Sincronizando ${metric} com Apple Health...`);
-    alert(`Sincronização de "${metric}" com Apple Health em desenvolvimento.`);
-  };
-
   const nutritionTargets = user?.name === 'Sarah' 
     ? { calories: 1200, protein: 96, carbs: 135, fats: 30 }
     : { calories: 2200, protein: 180, carbs: 170, fats: 80 }; // Wesley's targets
@@ -435,7 +513,7 @@ export function Corpo() {
                   {time}
                 </h3>
                 <div className="space-y-4">
-                  {meals.map((meal, i) => (
+                  {(meals as any[]).map((meal, i) => (
                     <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-background rounded-2xl border border-surface-border">
                       <div className="flex-1">
                         <p className="font-medium text-secondary">{meal.desc}</p>
@@ -452,6 +530,46 @@ export function Corpo() {
               </div>
             ))
           )}
+
+          {/* Consistência de Hábitos (Corpo) */}
+          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="font-serif text-2xl font-semibold text-secondary">Consistência de Hábitos</h2>
+              <Activity className="w-5 h-5 text-primary" />
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {habits.length === 0 ? (
+                <p className="text-text-muted italic col-span-2">Nenhum hábito registrado para acompanhar.</p>
+              ) : (
+                habits.map(habit => {
+                  const percentage = calculateHabitWeeklyPercentage(habit);
+                  return (
+                    <div key={habit.id} className="p-4 bg-background rounded-2xl border border-surface-border">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="font-medium text-secondary">{habit.name}</span>
+                        <span className={cn(
+                          "text-xs font-bold px-2 py-1 rounded-full",
+                          percentage >= 85 ? "bg-emerald-100 text-emerald-700" : "bg-primary/10 text-primary"
+                        )}>
+                          {percentage}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-surface-border rounded-full overflow-hidden">
+                        <div 
+                          className={cn(
+                            "h-full transition-all duration-1000",
+                            percentage >= 85 ? "bg-emerald-500" : "bg-primary"
+                          )}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
 
         <Modal 
@@ -587,7 +705,7 @@ export function Corpo() {
       </header>
 
       {/* Top Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <MetricCard 
           label="Peso Atual" 
           value={`${weight} kg`} 
@@ -598,16 +716,15 @@ export function Corpo() {
         />
         <MetricCard label="Média Semanal" value={`${weight} kg`} subtext="Estável" icon={Activity} onClick={() => alert("Visualizando histórico de peso...")} />
         <MetricCard label="Gordura Est." value={`${measurements.bf || '0'}%`} subtext="Meta: 12%" icon={TrendingDown} trend="down" onClick={handleRegisterMeasurements} />
-        <MetricCard label="Passos (Média)" value="10.2k" subtext="Últimos 7 dias" icon={Footprints} onClick={() => handleSyncHealth("Passos")} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
         {/* Left Column: Chart & Fitness */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="space-y-8">
           
           {/* Weight Chart */}
-          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
+          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm h-full">
             <div className="flex items-center justify-between mb-8">
               <h2 className="font-serif text-2xl font-semibold text-secondary">Evolução</h2>
               <div className="flex bg-background border border-surface-border rounded-lg p-1">
@@ -704,47 +821,13 @@ export function Corpo() {
               </div>
             </div>
           </div>
-
-          {/* Apple Fitness Averages */}
-          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
-            <h2 className="font-serif text-2xl font-semibold text-secondary mb-6">Médias do Apple Fitness</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <FitnessRing 
-                label="Calorias Ativas" 
-                value="750" 
-                unit="kcal" 
-                target="800" 
-                color="bg-orange-500" 
-                icon={Flame} 
-                onClick={() => handleSyncHealth("Calorias Ativas")}
-              />
-              <FitnessRing 
-                label="Exercício" 
-                value="55" 
-                unit="min" 
-                target="60" 
-                color="bg-emerald-500" 
-                icon={Activity} 
-                onClick={() => handleSyncHealth("Exercício")}
-              />
-              <FitnessRing 
-                label="Em pé" 
-                value="12" 
-                unit="hrs" 
-                target="12" 
-                color="bg-blue-500" 
-                icon={Activity} 
-                onClick={() => handleSyncHealth("Em pé")}
-              />
-            </div>
-          </div>
         </div>
 
-        {/* Right Column: Nutrition & Photos */}
+        {/* Right Column: Nutrition & Habits */}
         <div className="space-y-8">
           
-          {/* Nutrition Macros */}
-          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
+          {/* Nutrition Summary */}
+          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm h-full flex flex-col">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-background border border-surface-border rounded-xl">
@@ -764,22 +847,86 @@ export function Corpo() {
               </div>
             </div>
 
-            <div className="space-y-6">
-              <MacroBar label="Proteínas" current={totalProteins} target={nutritionTargets.protein} unit="g" color="bg-primary" onClick={() => handleLogFood("Proteínas")} />
-              <MacroBar label="Carboidratos" current={totalCarbs} target={nutritionTargets.carbs} unit="g" color="bg-blue-400" onClick={() => handleLogFood("Carboidratos")} />
-              <MacroBar label="Gorduras" current={totalFats} target={nutritionTargets.fats} unit="g" color="bg-yellow-500" onClick={() => handleLogFood("Gorduras")} />
-              
-              <div className="pt-4 border-t border-surface-border mt-4">
-                <MacroBar label="Calorias Totais" current={totalCalories} target={nutritionTargets.calories} unit="kcal" color="bg-secondary" onClick={() => handleLogFood("Calorias")} />
+            <div className="flex-1 space-y-8">
+              <div className="flex flex-col items-center justify-center p-8 bg-background rounded-3xl border border-surface-border relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -z-10" />
+                <div className="relative w-40 h-40 mb-4 flex items-center justify-center">
+                  <svg className="w-full h-full -rotate-90">
+                    <circle cx="80" cy="80" r="74" fill="transparent" stroke="#E5E2D9" strokeWidth="10" />
+                    <circle
+                      cx="80"
+                      cy="80"
+                      r="74"
+                      fill="transparent"
+                      stroke="currentColor"
+                      strokeWidth="10"
+                      className="text-primary"
+                      strokeDasharray={`${2 * Math.PI * 74}`}
+                      strokeDashoffset={`${2 * Math.PI * 74 * (1 - Math.min(1, totalCalories / nutritionTargets.calories))}`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-4xl font-serif font-bold text-secondary">{totalCalories}</span>
+                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">kcal</span>
+                  </div>
+                </div>
+                <p className="text-sm text-text-muted font-medium">Consumido de {nutritionTargets.calories} kcal</p>
+              </div>
+
+              <div className="space-y-6">
+                <MacroBar label="Proteínas" current={totalProteins} target={nutritionTargets.protein} unit="g" color="bg-primary" onClick={() => handleLogFood("Proteínas")} />
+                <MacroBar label="Carboidratos" current={totalCarbs} target={nutritionTargets.carbs} unit="g" color="bg-blue-400" onClick={() => handleLogFood("Carboidratos")} />
+                <MacroBar label="Gorduras" current={totalFats} target={nutritionTargets.fats} unit="g" color="bg-yellow-500" onClick={() => handleLogFood("Gorduras")} />
               </div>
             </div>
             
-            <div className="mt-8 p-4 bg-background rounded-2xl border border-surface-border flex items-start gap-3">
-              <Droplets className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <div className="text-sm font-semibold text-secondary">Água: 2.0L / 3.0L</div>
-                <div className="text-xs text-text-muted mt-1">Você está no ritmo certo para bater a meta {selectedDate.toDateString() === new Date().toDateString() ? "hoje" : "neste dia"}.</div>
-              </div>
+            <button 
+              onClick={() => setIsMealModalOpen(true)}
+              className="w-full mt-8 py-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Registrar Refeição (IA)
+            </button>
+          </div>
+
+          {/* Consistência de Hábitos (Corpo) */}
+          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="font-serif text-2xl font-semibold text-secondary">Consistência de Hábitos</h2>
+              <Activity className="w-5 h-5 text-primary" />
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {habits.length === 0 ? (
+                <p className="text-text-muted italic col-span-2">Nenhum hábito corporal registrado.</p>
+              ) : (
+                habits.map(habit => {
+                  const percentage = calculateHabitWeeklyPercentage(habit);
+                  return (
+                    <div key={habit.id} className="p-4 bg-background rounded-2xl border border-surface-border">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="font-medium text-secondary">{habit.name}</span>
+                        <span className={cn(
+                          "text-xs font-bold px-2 py-1 rounded-full",
+                          percentage >= 85 ? "bg-emerald-100 text-emerald-700" : "bg-primary/10 text-primary"
+                        )}>
+                          {percentage}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-surface-border rounded-full overflow-hidden">
+                        <div 
+                          className={cn(
+                            "h-full transition-all duration-1000",
+                            percentage >= 85 ? "bg-emerald-500" : "bg-primary"
+                          )}
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -822,11 +969,9 @@ export function Corpo() {
               </div>
             </div>
           </div>
-
         </div>
       </div>
 
-      {/* Modals */}
       <Modal 
         isOpen={isWeightModalOpen} 
         onClose={() => setIsWeightModalOpen(false)} 

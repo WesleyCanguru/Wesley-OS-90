@@ -9,7 +9,8 @@ import {
   Target,
   Menu,
   X,
-  LogOut
+  LogOut,
+  Dumbbell
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -20,10 +21,10 @@ import { getCycleInfo } from "@/lib/cycle";
 const navItems = [
   { name: "Início", path: "/", icon: LayoutDashboard },
   { name: "Check-in", path: "/hoje", icon: CalendarCheck },
+  { name: "Treinos", path: "/treinos", icon: Dumbbell },
   { name: "Corpo", path: "/corpo", icon: Activity },
   { name: "Alma", path: "/alma", icon: Brain },
   { name: "Metas", path: "/metas", icon: Target },
-  { name: "Apple Fitness", path: "/ontem", icon: History },
   { name: "Agência", path: "/agencia", icon: Briefcase },
 ];
 
@@ -131,7 +132,7 @@ export function Layout({ user, onLogout }: { user: { name: string }, onLogout: (
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-6 left-4 right-4 z-50 bg-surface/80 backdrop-blur-xl border border-surface-border shadow-2xl rounded-3xl px-2 py-2 flex items-center justify-around">
-        {navItems.filter(item => ["Início", "Agência", "Check-in", "Corpo", "Apple Fitness"].includes(item.name)).map((item) => (
+        {navItems.filter(item => ["Início", "Treinos", "Check-in", "Corpo", "Alma"].includes(item.name)).map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
@@ -168,7 +169,7 @@ export function Layout({ user, onLogout }: { user: { name: string }, onLogout: (
       </header>
 
       {/* Main Content */}
-      <main className="pt-24 md:pt-12 px-6 md:px-10 lg:px-16 max-w-7xl mx-auto animate-in fade-in duration-700">
+      <main className="pt-24 md:pt-12 px-6 md:px-10 lg:px-16 w-full animate-in fade-in duration-700">
         <Outlet />
       </main>
     </div>
