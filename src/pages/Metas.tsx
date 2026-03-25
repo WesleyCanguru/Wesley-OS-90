@@ -342,7 +342,7 @@ export function Metas() {
           <h1 className="text-4xl md:text-5xl font-serif font-semibold tracking-tight text-primary">Metas & Execução</h1>
         </div>
         
-        <div className="flex bg-surface border border-surface-border p-1 rounded-2xl shadow-sm">
+        <div className="flex bg-surface border border-surface-border p-1 rounded-2xl shadow-sm hidden">
           <button 
             onClick={() => setViewMode('macro')}
             className={cn(
@@ -366,7 +366,7 @@ export function Metas() {
         </div>
       </header>
 
-      {viewMode === 'macro' ? (
+      {viewMode === 'macro' || true ? (
         /* ================= VISÃO MACRO ================= */
         <div className="space-y-10 animate-in slide-in-from-left-4 duration-300">
           {/* Master Progress & Vision */}
@@ -523,7 +523,7 @@ export function Metas() {
                 {habits.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="p-8 text-center text-text-muted italic">
-                      Nenhum hábito cadastrado. Vá para a aba "Hoje" para adicionar.
+                      Nenhum hábito cadastrado. Vá para a aba "Check-in" para adicionar.
                     </td>
                   </tr>
                 ) : (

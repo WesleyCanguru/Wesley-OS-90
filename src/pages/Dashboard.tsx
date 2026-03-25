@@ -248,208 +248,280 @@ export function Dashboard() {
           </div>
 
           <button 
-            onClick={() => navigate("/hoje")}
+            onClick={() => navigate("/check-in")}
             className="bg-primary text-white px-8 py-4 rounded-2xl font-bold hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-3 group"
           >
             <CalendarCheck className="w-6 h-6 group-hover:scale-110 transition-transform" />
-            Check-in Hoje
+            Check-in
           </button>
         </div>
       </header>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        <SummaryCard 
-          label="Peso" 
-          value={`${todayStats.weight} kg`} 
-          icon={Scale} 
-          onClick={() => navigate("/corpo")}
-        />
-        <SummaryCard 
-          label="Calorias" 
-          value={`${todayStats.calories}`} 
-          subtext={`Meta: ${nutritionTargets.calories}`}
-          icon={Flame} 
-          onClick={() => navigate("/corpo")}
-          color="text-orange-500"
-        />
-        <SummaryCard 
-          label="Treino" 
-          value={todayStats.workout ? todayStats.workout.type : "Pendente"} 
-          subtext={todayStats.workout ? `${todayStats.workout.duration} min` : "Não registrado"}
-          icon={Dumbbell} 
-          onClick={() => navigate("/treinos")}
-          color={todayStats.workout ? "text-emerald-600" : "text-amber-500"}
-        />
-        <SummaryCard 
-          label="Alma" 
-          value={todayStats.energy > 0 ? `Energia: ${todayStats.energy}` : "Pendente"} 
-          subtext={todayStats.habitsDone > 0 ? `${todayStats.habitsDone} hábitos OK` : "Check-in pendente"}
-          icon={Brain} 
-          onClick={() => navigate("/alma")}
-          color="text-primary"
-        />
+      {/* Insight do Dia (Full Width) */}
+      <div className="bg-primary text-white rounded-3xl p-8 shadow-lg relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-4">
+            <Sparkles className="w-6 h-6 text-white/40" />
+            <h2 className="font-serif text-2xl font-semibold tracking-tight">Insight do Dia</h2>
+          </div>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <p className="text-white/90 text-lg leading-relaxed font-light italic max-w-3xl">
+              {todayStats.workout 
+                ? "Excelente trabalho no treino de hoje! Mantenha o foco na ingestão de proteínas para otimizar sua recuperação muscular."
+                : "Ainda não registrou seu treino? Lembre-se que a constância é o segredo do progresso. Um treino curto é melhor que nenhum treino!"}
+            </p>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-white/40 border-l border-white/10 pl-6 hidden md:block whitespace-nowrap">
+              Gerado por IA
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Habit Tracker */}
+      <div className="bg-surface border border-surface-border rounded-3xl shadow-sm overflow-hidden">
+        <div className="p-6 md:p-8 border-b border-surface-border bg-background/50 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <h2 className="font-serif text-2xl font-semibold text-secondary">Rastreador de Hábitos</h2>
+            <p className="text-text-muted text-sm mt-1">Acompanhamento da semana atual. Preencha na aba "Check-in".</p>
+          </div>
+          
+          <div className="flex flex-wrap gap-4">
+            <div className="flex flex-col items-center justify-center px-4 py-2 bg-surface border border-surface-border rounded-xl">
+              <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Semana</span>
+              <span className="text-lg font-serif font-bold text-primary">{currentWeek} <span className="text-sm text-text-muted font-sans">/ 12</span></span>
+            </div>
+            
+            <div className="flex flex-col items-center justify-center px-4 py-2 bg-surface border border-surface-border rounded-xl">
+              <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Score Semanal</span>
+              <span className="text-lg font-serif font-bold text-emerald-600">
+                {habits.length ? Math.round(habits.reduce((acc, h) => acc + calculateHabitWeeklyPercentage(h), 0) / habits.length) : 0}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-surface-hover/50 border-b border-surface-border">
+                <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest w-1/3">Hábito</th>
+                <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-24">Freq..</th>
+                {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((day, i) => (
+                  <th key={day} className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-12">
+                    {day}
+                    <div className="text-[10px] font-normal mt-0.5 opacity-70">{weekDates[i]?.getDate()}</div>
+                  </th>
+                ))}
+                <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-24">% Sem.</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {habits.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="p-8 text-center text-text-muted italic">
+                    Nenhum hábito cadastrado. Vá para a aba "Check-in" para adicionar.
+                  </td>
+                </tr>
+              ) : (
+                habits.map(habit => {
+                  const percentage = calculateHabitWeeklyPercentage(habit);
+                  
+                  return (
+                    <tr key={habit.id} className="hover:bg-surface-hover/30 transition-colors">
+                      <td className="p-4">
+                        <div className="font-medium text-secondary">{habit.name}</div>
+                        <div className="text-xs text-text-muted mt-0.5">
+                          {habit.type === 'numeric' ? `Meta: ${habit.target_value} ${habit.unit}` : habit.type === 'negative' ? 'Evitar' : 'Check diário'}
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-background border border-surface-border text-xs font-bold text-primary">
+                          {habit.frequency_per_week}x
+                        </span>
+                      </td>
+                      
+                      {weekDates.map((date, i) => {
+                        const log = getLogForDate(habit.id, date);
+                        let isSuccess = false;
+                        let isFailed = false;
+
+                        if (habit.type === 'negative') {
+                          isSuccess = !log || log.completed;
+                          isFailed = log && !log.completed;
+                        } else {
+                          isSuccess = log?.completed || false;
+                        }
+
+                        const isFuture = date > new Date();
+
+                        return (
+                          <td key={i} className="p-4 text-center">
+                            {isFuture ? (
+                              <div className="w-6 h-6 mx-auto rounded bg-surface-border/30" />
+                            ) : isSuccess ? (
+                              <div className="w-6 h-6 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                <Check className="w-4 h-4" />
+                              </div>
+                            ) : isFailed ? (
+                              <div className="w-6 h-6 mx-auto rounded-full bg-red-100 text-red-600 flex items-center justify-center">
+                                <XIcon className="w-4 h-4" />
+                              </div>
+                            ) : (
+                              <div className="w-6 h-6 mx-auto rounded-full border-2 border-surface-border" />
+                            )}
+                          </td>
+                        );
+                      })}
+
+                      <td className="p-4 text-center">
+                        <div 
+                          className="inline-flex items-center justify-center px-3 py-1 rounded-lg text-sm font-bold"
+                          style={{ 
+                            backgroundColor: `hsl(${Math.min(120, (percentage / 85) * 120)}, 80%, 90%)`,
+                            color: `hsl(${Math.min(120, (percentage / 85) * 120)}, 80%, 35%)`
+                          }}
+                        >
+                          {percentage}%
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Main Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
-        {/* Left Column: Body & Nutrition */}
-        <div className="space-y-8">
-          {/* Nutrition Progress */}
-          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm h-full">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="font-serif text-2xl font-semibold text-secondary">Nutrição Hoje</h2>
-              <button onClick={() => navigate("/corpo")} className="text-sm font-bold text-primary hover:underline">Ver Detalhes</button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="md:col-span-1 flex flex-col items-center justify-center border-r border-surface-border pr-8">
-                <div className="relative w-32 h-32 flex items-center justify-center mb-4">
-                  <svg className="w-full h-full -rotate-90">
-                    <circle cx="64" cy="64" r="58" fill="transparent" stroke="#E5E2D9" strokeWidth="8" />
-                    <circle
-                      cx="64"
-                      cy="64"
-                      r="58"
-                      fill="transparent"
-                      stroke="currentColor"
-                      strokeWidth="8"
-                      className="text-primary"
-                      strokeDasharray={`${2 * Math.PI * 58}`}
-                      strokeDashoffset={`${2 * Math.PI * 58 * (1 - Math.min(1, todayStats.calories / nutritionTargets.calories))}`}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-serif font-bold text-secondary">{todayStats.calories}</span>
-                    <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">kcal</span>
-                  </div>
-                </div>
-                <p className="text-xs text-text-muted font-medium text-center">Consumido de {nutritionTargets.calories} kcal</p>
-              </div>
-
-              <div className="md:col-span-2 space-y-6">
-                <MacroBar label="Proteína" current={todayStats.protein} target={nutritionTargets.protein} unit="g" color="bg-emerald-500" />
-                <MacroBar label="Carboidratos" current={todayStats.carbs} target={nutritionTargets.carbs} unit="g" color="bg-blue-500" />
-                <MacroBar label="Gorduras" current={todayStats.fats} target={nutritionTargets.fats} unit="g" color="bg-orange-500" />
-              </div>
-            </div>
+        {/* Left Column: Nutrition */}
+        <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="font-serif text-xl font-semibold text-secondary">Nutrição Hoje</h2>
+            <button onClick={() => navigate("/corpo")} className="text-xs font-bold text-primary hover:underline">Ver Detalhes</button>
           </div>
-
-          {/* Recent Activity Feed */}
-          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
-            <h2 className="font-serif text-xl font-semibold text-secondary mb-6">Atividade Recente</h2>
-            <div className="space-y-6">
-              {recentActivity.map((activity, i) => (
-                <div key={i} className="flex gap-4">
-                  <div className="relative">
-                    <div className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center text-white shadow-sm",
-                      activity.type === 'food' ? 'bg-orange-500' : 
-                      activity.type === 'workout' ? 'bg-emerald-500' : 'bg-primary'
-                    )}>
-                      {activity.type === 'food' ? <Utensils className="w-5 h-5" /> : 
-                       activity.type === 'workout' ? <Dumbbell className="w-5 h-5" /> : <CalendarCheck className="w-5 h-5" />}
-                    </div>
-                    {i < recentActivity.length - 1 && (
-                      <div className="absolute top-10 left-1/2 -translate-x-1/2 w-px h-10 bg-surface-border" />
-                    )}
-                  </div>
-                  <div className="flex-1 pb-6">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="text-sm font-bold text-secondary">{activity.title}</h3>
-                      <span className="text-[10px] font-mono text-text-muted uppercase">{activity.time}</span>
-                    </div>
-                    <p className="text-xs text-text-muted">{activity.value}</p>
-                  </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+            <div className="md:col-span-1 flex flex-col items-center justify-center md:border-r border-surface-border md:pr-6">
+              <div className="relative w-24 h-24 flex items-center justify-center mb-2">
+                <svg className="w-full h-full -rotate-90">
+                  <circle cx="48" cy="48" r="42" fill="transparent" stroke="#E5E2D9" strokeWidth="6" />
+                  <circle
+                    cx="48"
+                    cy="48"
+                    r="42"
+                    fill="transparent"
+                    stroke="currentColor"
+                    strokeWidth="6"
+                    className="text-primary"
+                    strokeDasharray={`${2 * Math.PI * 42}`}
+                    strokeDashoffset={`${2 * Math.PI * 42 * (1 - Math.min(1, todayStats.calories / nutritionTargets.calories))}`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-xl font-serif font-bold text-secondary">{todayStats.calories}</span>
+                  <span className="text-[8px] font-bold text-text-muted uppercase tracking-widest">kcal</span>
                 </div>
-              ))}
+              </div>
+              <p className="text-[10px] text-text-muted font-medium text-center">Meta: {nutritionTargets.calories}</p>
+            </div>
+
+            <div className="md:col-span-2 space-y-4">
+              <MacroBar label="Proteína" current={todayStats.protein} target={nutritionTargets.protein} unit="g" color="bg-emerald-500" />
+              <MacroBar label="Carbos" current={todayStats.carbs} target={nutritionTargets.carbs} unit="g" color="bg-blue-500" />
+              <MacroBar label="Gorduras" current={todayStats.fats} target={nutritionTargets.fats} unit="g" color="bg-orange-500" />
             </div>
           </div>
         </div>
 
-        {/* Right Column: Insights & Activity */}
-        <div className="space-y-8">
-          {/* AI Insight Section */}
-          <div className="bg-primary text-white rounded-3xl p-8 relative overflow-hidden shadow-lg flex flex-col min-h-[240px] justify-center">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-            <div className="flex items-center gap-3 mb-6 relative z-10">
-              <div className="p-2 bg-white/10 rounded-full">
-                <TrendingUp className="w-5 h-5 text-white" />
-              </div>
-              <h2 className="font-serif text-2xl font-semibold">Insight do Dia</h2>
-            </div>
-            <p className="text-white/80 leading-relaxed text-lg relative z-10 font-light italic">
-              {todayStats.workout 
-                ? "Excelente trabalho no treino de hoje! Mantenha o foco na ingestão de proteínas para otimizar sua recuperação muscular."
-                : "Ainda não registrou seu treino? Lembre-se que a constância é o segredo do progresso. Um treino curto é melhor que nenhum treino!"}
-            </p>
-            <div className="mt-8 flex items-center gap-2 relative z-10">
-              <Sparkles className="w-4 h-4 text-white/60" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Gerado por Inteligência Artificial</span>
-            </div>
+        {/* Right Column: Soul & Mind */}
+        <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="font-serif text-xl font-semibold text-secondary">Alma & Mente</h2>
+            <Brain className="w-5 h-5 text-primary" />
           </div>
-
-          {/* Soul & Mind Summary */}
-          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-serif text-xl font-semibold text-secondary">Alma & Mente</h2>
-              <Brain className="w-5 h-5 text-primary" />
-            </div>
-            
-            <div className="space-y-6">
-              <div className="flex items-center justify-between p-4 bg-background rounded-2xl border border-surface-border">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-yellow-400/10 rounded-lg">
-                    <Zap className="w-4 h-4 text-yellow-500" />
-                  </div>
-                  <span className="text-sm font-medium text-secondary">Energia</span>
+          
+          <div className="space-y-6">
+            <div className="flex items-center justify-between p-4 bg-background rounded-2xl border border-surface-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-400/10 rounded-lg">
+                  <Zap className="w-4 h-4 text-yellow-500" />
                 </div>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div 
-                      key={i} 
-                      className={cn(
-                        "w-2 h-4 rounded-sm transition-all",
-                        i <= todayStats.energy ? "bg-yellow-400" : "bg-surface-border"
-                      )} 
-                    />
-                  ))}
-                </div>
+                <span className="text-sm font-medium text-secondary">Energia</span>
               </div>
-
-              <div className="flex items-center justify-between p-4 bg-background rounded-2xl border border-surface-border">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-400/10 rounded-lg">
-                    <Droplets className="w-4 h-4 text-blue-500" />
-                  </div>
-                  <span className="text-sm font-medium text-secondary">Água</span>
-                </div>
-                <div className="text-sm font-bold text-secondary">{todayStats.water} <span className="text-[10px] text-text-muted">ml</span></div>
-              </div>
-
-              <div className="p-4 bg-background rounded-2xl border border-surface-border">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-secondary">Hábitos Concluídos</span>
-                  <span className="text-xs font-bold text-primary">{todayStats.habitsDone}/{todayStats.totalHabits}</span>
-                </div>
-                <div className="h-2 w-full bg-surface-border rounded-full overflow-hidden">
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((i) => (
                   <div 
-                    className="h-full bg-primary rounded-full transition-all duration-1000" 
-                    style={{ width: `${todayStats.totalHabits > 0 ? (todayStats.habitsDone / todayStats.totalHabits) * 100 : 0}%` }} 
+                    key={i} 
+                    className={cn(
+                      "w-2 h-4 rounded-sm transition-all",
+                      i <= todayStats.energy ? "bg-yellow-400" : "bg-surface-border"
+                    )} 
                   />
-                </div>
+                ))}
               </div>
             </div>
-            
-            <button 
-              onClick={() => navigate("/alma")}
-              className="w-full mt-6 py-3 border border-surface-border rounded-xl text-sm font-bold text-text-muted hover:bg-surface-hover hover:text-secondary transition-all"
-            >
-              Ver Pilar Alma
-            </button>
+
+            <div className="flex items-center justify-between p-4 bg-background rounded-2xl border border-surface-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-400/10 rounded-lg">
+                  <Droplets className="w-4 h-4 text-blue-500" />
+                </div>
+                <span className="text-sm font-medium text-secondary">Água</span>
+              </div>
+              <div className="text-sm font-bold text-secondary">{todayStats.water} <span className="text-[10px] text-text-muted">ml</span></div>
+            </div>
+
+            <div className="p-4 bg-background rounded-2xl border border-surface-border">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-secondary">Hábitos Concluídos</span>
+                <span className="text-xs font-bold text-primary">{todayStats.habitsDone}/{todayStats.totalHabits}</span>
+              </div>
+              <div className="h-2 w-full bg-surface-border rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary rounded-full transition-all duration-1000" 
+                  style={{ width: `${todayStats.totalHabits > 0 ? (todayStats.habitsDone / todayStats.totalHabits) * 100 : 0}%` }} 
+                />
+              </div>
+            </div>
           </div>
+          
+          <button 
+            onClick={() => navigate("/alma")}
+            className="w-full mt-6 py-3 border border-surface-border rounded-xl text-sm font-bold text-text-muted hover:bg-surface-hover hover:text-secondary transition-all"
+          >
+            Ver Pilar Alma
+          </button>
+        </div>
+      </div>
+
+      {/* Atividade Recente (Full Width) */}
+      <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
+        <h2 className="font-serif text-xl font-semibold text-secondary mb-6">Atividade Recente</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {recentActivity.map((activity, i) => (
+            <div key={i} className="flex gap-4 p-4 bg-background rounded-2xl border border-surface-border">
+              <div className={cn(
+                "w-12 h-12 rounded-full flex items-center justify-center text-white shadow-sm flex-shrink-0",
+                activity.type === 'food' ? 'bg-orange-500' : 
+                activity.type === 'workout' ? 'bg-emerald-500' : 'bg-primary'
+              )}>
+                {activity.type === 'food' ? <Utensils className="w-6 h-6" /> : 
+                 activity.type === 'workout' ? <Dumbbell className="w-6 h-6" /> : <CalendarCheck className="w-6 h-6" />}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-sm font-bold text-secondary">{activity.title}</h3>
+                  <span className="text-[10px] font-mono text-text-muted uppercase">{activity.time}</span>
+                </div>
+                <p className="text-xs text-text-muted">{activity.value}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

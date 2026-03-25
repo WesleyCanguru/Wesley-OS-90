@@ -20,7 +20,7 @@ import { getCycleInfo } from "@/lib/cycle";
 
 const navItems = [
   { name: "Início", path: "/", icon: LayoutDashboard },
-  { name: "Check-in", path: "/hoje", icon: CalendarCheck },
+  { name: "Check-in", path: "/check-in", icon: CalendarCheck },
   { name: "Treinos", path: "/treinos", icon: Dumbbell },
   { name: "Corpo", path: "/corpo", icon: Activity },
   { name: "Alma", path: "/alma", icon: Brain },

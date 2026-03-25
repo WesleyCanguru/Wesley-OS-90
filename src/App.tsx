@@ -58,7 +58,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Layout user={user} onLogout={() => setUser(null)} />}>
           <Route index element={<Dashboard />} />
-          <Route path="hoje" element={<Hoje />} />
+          <Route path="check-in" element={<Hoje />} />
           <Route path="corpo" element={<Corpo />} />
           <Route path="alma" element={<Alma />} />
           <Route path="treinos" element={<Treinos />} />

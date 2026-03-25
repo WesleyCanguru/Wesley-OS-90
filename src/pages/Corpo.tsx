@@ -49,6 +49,8 @@ export function Corpo() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [chartTab, setChartTab] = useState<"composicao" | "medidas">("composicao");
   
+  const [uploadingAngle, setUploadingAngle] = useState<string | null>(null);
+  
   const [weight, setWeight] = useState<number>(0);
   const [weightHistory, setWeightHistory] = useState<any[]>([]);
   const [measurements, setMeasurements] = useState<any>({});
@@ -67,6 +69,11 @@ export function Corpo() {
   const [newFats, setNewFats] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedMeasurementDate, setSelectedMeasurementDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+  const [selectedPhotoDate, setSelectedPhotoDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+  const [isPhotoAngleModalOpen, setIsPhotoAngleModalOpen] = useState(false);
+  const [currentPhotoAngle, setCurrentPhotoAngle] = useState<string>("frente");
 
   useEffect(() => {
     if (user) {
@@ -164,22 +171,54 @@ export function Corpo() {
         .order('created_at', { ascending: true });
 
       if (stats && stats.length > 0) {
-        const history = stats.map(s => ({
-          day: new Date(s.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-          peso: s.weight,
-          photo_url: s.measurements?.photo_url,
-          bf: s.measurements?.bf ? parseFloat(s.measurements.bf) : null,
-          muscle: s.measurements?.muscle ? parseFloat(s.measurements.muscle) : null,
-          waist: s.measurements?.waist ? parseFloat(s.measurements.waist) : null,
-          chest: s.measurements?.chest ? parseFloat(s.measurements.chest) : null,
-          armL: s.measurements?.armL ? parseFloat(s.measurements.armL) : null,
-          armR: s.measurements?.armR ? parseFloat(s.measurements.armR) : null,
-          thighL: s.measurements?.thighL ? parseFloat(s.measurements.thighL) : null,
-          thighR: s.measurements?.thighR ? parseFloat(s.measurements.thighR) : null,
-        }));
+        // Group by date to avoid duplicate rows for the same day
+        const groupedByDate: { [key: string]: any } = {};
+        
+        stats.forEach(s => {
+          const dateKey = new Date(s.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          
+          const entryPhotos = s.measurements?.photos || (s.measurements?.photo_url ? { frente: s.measurements.photo_url } : {});
+          
+          if (!groupedByDate[dateKey]) {
+            groupedByDate[dateKey] = {
+              day: dateKey,
+              peso: s.weight,
+              photo_url: s.measurements?.photo_url,
+              photos: entryPhotos,
+              bf: s.measurements?.bf ? parseFloat(s.measurements.bf) : null,
+              muscle: s.measurements?.muscle ? parseFloat(s.measurements.muscle) : null,
+              waist: s.measurements?.waist ? parseFloat(s.measurements.waist) : null,
+              chest: s.measurements?.chest ? parseFloat(s.measurements.chest) : null,
+              armL: s.measurements?.armL ? parseFloat(s.measurements.armL) : null,
+              armR: s.measurements?.armR ? parseFloat(s.measurements.armR) : null,
+              thighL: s.measurements?.thighL ? parseFloat(s.measurements.thighL) : null,
+              thighR: s.measurements?.thighR ? parseFloat(s.measurements.thighR) : null,
+              measurements: s.measurements,
+              created_at: s.created_at
+            };
+          } else {
+            // Merge photos and update with latest measurements for that day
+            groupedByDate[dateKey].photos = { ...groupedByDate[dateKey].photos, ...entryPhotos };
+            groupedByDate[dateKey].peso = s.weight;
+            groupedByDate[dateKey].measurements = s.measurements;
+            groupedByDate[dateKey].bf = s.measurements?.bf ? parseFloat(s.measurements.bf) : groupedByDate[dateKey].bf;
+            groupedByDate[dateKey].muscle = s.measurements?.muscle ? parseFloat(s.measurements.muscle) : groupedByDate[dateKey].muscle;
+            groupedByDate[dateKey].waist = s.measurements?.waist ? parseFloat(s.measurements.waist) : groupedByDate[dateKey].waist;
+            groupedByDate[dateKey].chest = s.measurements?.chest ? parseFloat(s.measurements.chest) : groupedByDate[dateKey].chest;
+            groupedByDate[dateKey].armL = s.measurements?.armL ? parseFloat(s.measurements.armL) : groupedByDate[dateKey].armL;
+            groupedByDate[dateKey].armR = s.measurements?.armR ? parseFloat(s.measurements.armR) : groupedByDate[dateKey].armR;
+            groupedByDate[dateKey].thighL = s.measurements?.thighL ? parseFloat(s.measurements.thighL) : groupedByDate[dateKey].thighL;
+            groupedByDate[dateKey].thighR = s.measurements?.thighR ? parseFloat(s.measurements.thighR) : groupedByDate[dateKey].thighR;
+            groupedByDate[dateKey].created_at = s.created_at; // Keep latest timestamp
+          }
+        });
+
+        const history = Object.values(groupedByDate).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        
         setWeightHistory(history);
-        setWeight(stats[stats.length - 1].weight);
-        setMeasurements(stats[stats.length - 1].measurements || {});
+        const latestStat = stats[stats.length - 1];
+        setWeight(latestStat.weight);
+        setMeasurements(latestStat.measurements || {});
       }
 
       // 2. Fetch Food Logs for selectedDate
@@ -316,6 +355,7 @@ export function Corpo() {
     if (!file || !user) return;
     
     setUploadingPhoto(true);
+    setUploadingAngle(currentPhotoAngle);
     try {
       // Compress image
       const reader = new FileReader();
@@ -335,17 +375,34 @@ export function Corpo() {
           
           const base64Image = canvas.toDataURL('image/jpeg', 0.7);
           
-          // Save to body_stats
-          const newMeasurements = { ...measurements, photo_url: base64Image };
+          // Use selected date
+          const insertDate = new Date(selectedPhotoDate);
+          insertDate.setHours(12, 0, 0, 0);
+
+          // Check if we already have an entry for this date to merge photos
+          const dateStr = insertDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          const existingEntry = weightHistory.find(h => h.day === dateStr);
+          
+          const currentPhotos = existingEntry?.photos || measurements.photos || {};
+          const newPhotos = { ...currentPhotos, [currentPhotoAngle]: base64Image };
+          const newMeasurements = { ...(existingEntry?.measurements || measurements), photos: newPhotos };
+          
+          if (currentPhotoAngle === 'frente') {
+            newMeasurements.photo_url = base64Image;
+          }
+
           const { error } = await supabase.from('body_stats').insert([{
             user_name: user.name,
-            weight: weight,
-            measurements: newMeasurements
+            weight: existingEntry?.peso || weight,
+            measurements: newMeasurements,
+            created_at: insertDate.toISOString()
           }]);
           
           if (error) throw error;
           fetchBodyData();
           setUploadingPhoto(false);
+          setUploadingAngle(null);
+          setIsPhotoAngleModalOpen(false);
           alert("Foto salva com sucesso!");
         };
       };
@@ -353,10 +410,12 @@ export function Corpo() {
       console.error("Erro ao fazer upload da foto:", error);
       alert("Erro ao fazer upload da foto.");
       setUploadingPhoto(false);
+      setUploadingAngle(null);
     }
   };
 
-  const handleNewPhoto = () => {
+  const handleNewPhoto = (angle: string = "frente") => {
+    setCurrentPhotoAngle(angle);
     document.getElementById('photo-upload')?.click();
   };
 
@@ -416,11 +475,18 @@ export function Corpo() {
   const totalCarbs = foodLogs.reduce((acc, curr) => acc + (curr.carbs || 0), 0);
   const totalFats = foodLogs.reduce((acc, curr) => acc + (curr.fat || 0), 0);
 
-  const photos = weightHistory.filter(h => h.photo_url).map(h => ({
+  const photosByEntry = weightHistory.filter(h => h.photos && Object.keys(h.photos).length > 0).map(h => ({
     day: h.day,
-    url: h.photo_url,
+    photos: h.photos,
     weight: h.peso
   }));
+
+  const photoAngles = [
+    { id: 'frente', label: 'Frente' },
+    { id: 'costas', label: 'Costas' },
+    { id: 'lado_e', label: 'Lado Esquerdo' },
+    { id: 'lado_d', label: 'Lado Direito' }
+  ];
 
   if (viewingMeals) {
     // Group meals by meal time (prefix in name)
@@ -633,10 +699,10 @@ export function Corpo() {
               <ChevronRight className="w-4 h-4 rotate-180" />
               Voltar
             </button>
-            <h1 className="text-3xl font-serif font-semibold text-primary">Galeria de Progresso</h1>
+            <h1 className="text-3xl font-serif font-semibold text-primary">Galeria de Comparação</h1>
           </div>
           <button 
-            onClick={handleNewPhoto}
+            onClick={() => setIsPhotoAngleModalOpen(true)}
             className="bg-primary text-white px-5 py-2.5 rounded-full font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-md"
           >
             <Camera className="w-4 h-4" />
@@ -644,22 +710,43 @@ export function Corpo() {
           </button>
         </header>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {photos.length === 0 ? (
-            <div className="col-span-full py-12 text-center text-text-muted">
-              Nenhuma foto registrada ainda.
-            </div>
-          ) : (
-            photos.map((photo, i) => (
-              <div key={i} className="aspect-[3/4] bg-surface rounded-2xl border border-surface-border overflow-hidden relative group">
-                <img src={photo.url} alt={`Progresso ${photo.day}`} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                  <span className="text-white font-bold">{photo.day}</span>
-                  <span className="text-white/80 text-sm">{photo.weight} kg</span>
-                </div>
-              </div>
-            ))
-          )}
+        <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm overflow-x-auto">
+          <div className="min-w-[1000px]">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="p-4 text-left text-xs font-bold text-text-muted uppercase tracking-widest border-b border-surface-border w-48">Ângulo / Data</th>
+                  {photosByEntry.map((entry, idx) => (
+                    <th key={idx} className="p-4 text-center border-b border-surface-border min-w-[250px]">
+                      <div className="text-lg font-serif font-bold text-secondary">{entry.day}</div>
+                      <div className="text-xs text-text-muted font-mono">{entry.weight} kg</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {photoAngles.map((angle) => (
+                  <tr key={angle.id} className="border-b border-surface-border last:border-0">
+                    <td className="p-6 font-semibold text-secondary bg-background/50 sticky left-0 z-10 text-lg">{angle.label}</td>
+                    {photosByEntry.map((entry, idx) => (
+                      <td key={idx} className="p-4">
+                        <div className="aspect-[3/4] bg-background rounded-2xl border border-surface-border overflow-hidden relative group shadow-sm">
+                          {entry.photos[angle.id] ? (
+                            <img src={entry.photos[angle.id]} alt={`${angle.label} ${entry.day}`} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-text-muted/10">
+                              <Camera className="w-12 h-12 mb-2" />
+                              <span className="text-[10px] font-bold uppercase tracking-widest">Sem foto</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
         <input 
           type="file" 
@@ -718,259 +805,326 @@ export function Corpo() {
         <MetricCard label="Gordura Est." value={`${measurements.bf || '0'}%`} subtext="Meta: 12%" icon={TrendingDown} trend="down" onClick={handleRegisterMeasurements} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Left Column: Chart & Fitness */}
-        <div className="space-y-8">
-          
-          {/* Weight Chart */}
-          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm h-full">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="font-serif text-2xl font-semibold text-secondary">Evolução</h2>
-              <div className="flex bg-background border border-surface-border rounded-lg p-1">
-                <button 
-                  onClick={() => setChartTab("composicao")}
-                  className={cn(
-                    "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
-                    chartTab === "composicao" ? "bg-white shadow-sm text-secondary" : "text-text-muted hover:text-secondary"
-                  )}
-                >
-                  Composição
-                </button>
-                <button 
-                  onClick={() => setChartTab("medidas")}
-                  className={cn(
-                    "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
-                    chartTab === "medidas" ? "bg-white shadow-sm text-secondary" : "text-text-muted hover:text-secondary"
-                  )}
-                >
-                  Medidas
-                </button>
-              </div>
-            </div>
-            
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={weightHistory.length > 0 ? weightHistory : [{day: '01', peso: weight, bf: measurements.bf, muscle: measurements.muscle}]} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E2D9" />
-                  <XAxis 
-                    dataKey="day" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#6B7280', fontSize: 12 }}
-                    dy={10}
-                  />
-                  <YAxis 
-                    domain={['auto', 'auto']} 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#6B7280', fontSize: 12, fontFamily: 'JetBrains Mono' }}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#1A1A1A', 
-                      borderRadius: '12px',
-                      border: 'none',
-                      color: '#fff',
-                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                    }}
-                    itemStyle={{ color: '#00e5ff', fontFamily: 'JetBrains Mono' }}
-                  />
-                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                  
-                  {chartTab === "composicao" ? (
-                    <>
-                      <Line name="Peso (kg)" type="monotone" dataKey="peso" stroke="#0A2540" strokeWidth={3} dot={{ fill: '#0A2540', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} connectNulls />
-                      <Line name="Músculo (kg)" type="monotone" dataKey="muscle" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} connectNulls />
-                      <Line name="Gordura (%)" type="monotone" dataKey="bf" stroke="#f59e0b" strokeWidth={3} dot={{ fill: '#f59e0b', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} connectNulls />
-                    </>
-                  ) : (
-                    <>
-                      <Line name="Cintura" type="monotone" dataKey="waist" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
-                      <Line name="Peito" type="monotone" dataKey="chest" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
-                      <Line name="Braço (E)" type="monotone" dataKey="armL" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
-                      <Line name="Braço (D)" type="monotone" dataKey="armR" stroke="#d946ef" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
-                      <Line name="Coxa (E)" type="monotone" dataKey="thighL" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
-                      <Line name="Coxa (D)" type="monotone" dataKey="thighR" stroke="#14b8a6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
-                    </>
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            
-            {/* Resumo de Medidas */}
-            <div className="mt-8 pt-6 border-t border-surface-border">
-              <h3 className="text-sm font-semibold text-secondary mb-4 uppercase tracking-wider">Resumo Atual</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-background p-3 rounded-xl border border-surface-border">
-                  <div className="text-xs text-text-muted mb-1">Cintura</div>
-                  <div className="font-serif font-bold text-secondary">{measurements.waist || '--'} <span className="text-xs font-sans font-normal text-text-muted">cm</span></div>
-                </div>
-                <div className="bg-background p-3 rounded-xl border border-surface-border">
-                  <div className="text-xs text-text-muted mb-1">Peito</div>
-                  <div className="font-serif font-bold text-secondary">{measurements.chest || '--'} <span className="text-xs font-sans font-normal text-text-muted">cm</span></div>
-                </div>
-                <div className="bg-background p-3 rounded-xl border border-surface-border">
-                  <div className="text-xs text-text-muted mb-1">Braços (E/D)</div>
-                  <div className="font-serif font-bold text-secondary">{measurements.armL || '--'} / {measurements.armR || '--'} <span className="text-xs font-sans font-normal text-text-muted">cm</span></div>
-                </div>
-                <div className="bg-background p-3 rounded-xl border border-surface-border">
-                  <div className="text-xs text-text-muted mb-1">Coxas (E/D)</div>
-                  <div className="font-serif font-bold text-secondary">{measurements.thighL || '--'} / {measurements.thighR || '--'} <span className="text-xs font-sans font-normal text-text-muted">cm</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Nutrition & Habits */}
-        <div className="space-y-8">
-          
-          {/* Nutrition Summary */}
-          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm h-full flex flex-col">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-background border border-surface-border rounded-xl">
-                  <Utensils className="w-5 h-5 text-primary" />
-                </div>
-                <h2 className="font-serif text-2xl font-semibold text-secondary">
-                  Nutrição {selectedDate.toDateString() === new Date().toDateString() ? "Hoje" : selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                </h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={handleViewMeals}
-                  className="bg-primary/10 text-primary px-4 py-2 rounded-xl text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-2"
-                >
-                  Ver Refeições
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 space-y-8">
-              <div className="flex flex-col items-center justify-center p-8 bg-background rounded-3xl border border-surface-border relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -z-10" />
-                <div className="relative w-40 h-40 mb-4 flex items-center justify-center">
-                  <svg className="w-full h-full -rotate-90">
-                    <circle cx="80" cy="80" r="74" fill="transparent" stroke="#E5E2D9" strokeWidth="10" />
-                    <circle
-                      cx="80"
-                      cy="80"
-                      r="74"
-                      fill="transparent"
-                      stroke="currentColor"
-                      strokeWidth="10"
-                      className="text-primary"
-                      strokeDasharray={`${2 * Math.PI * 74}`}
-                      strokeDashoffset={`${2 * Math.PI * 74 * (1 - Math.min(1, totalCalories / nutritionTargets.calories))}`}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-4xl font-serif font-bold text-secondary">{totalCalories}</span>
-                    <span className="text-xs font-bold text-text-muted uppercase tracking-widest">kcal</span>
-                  </div>
-                </div>
-                <p className="text-sm text-text-muted font-medium">Consumido de {nutritionTargets.calories} kcal</p>
-              </div>
-
-              <div className="space-y-6">
-                <MacroBar label="Proteínas" current={totalProteins} target={nutritionTargets.protein} unit="g" color="bg-primary" onClick={() => handleLogFood("Proteínas")} />
-                <MacroBar label="Carboidratos" current={totalCarbs} target={nutritionTargets.carbs} unit="g" color="bg-blue-400" onClick={() => handleLogFood("Carboidratos")} />
-                <MacroBar label="Gorduras" current={totalFats} target={nutritionTargets.fats} unit="g" color="bg-yellow-500" onClick={() => handleLogFood("Gorduras")} />
-              </div>
-            </div>
-            
+      {/* Evolution Section (Full Width) */}
+      <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <h2 className="font-serif text-2xl font-semibold text-secondary">Evolução</h2>
+          <div className="flex bg-background border border-surface-border rounded-lg p-1">
             <button 
-              onClick={() => setIsMealModalOpen(true)}
-              className="w-full mt-8 py-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-2"
+              onClick={() => setChartTab("composicao")}
+              className={cn(
+                "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
+                chartTab === "composicao" ? "bg-white shadow-sm text-secondary" : "text-text-muted hover:text-secondary"
+              )}
             >
-              <Plus className="w-4 h-4" />
-              Registrar Refeição (IA)
+              Composição
+            </button>
+            <button 
+              onClick={() => setChartTab("medidas")}
+              className={cn(
+                "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
+                chartTab === "medidas" ? "bg-white shadow-sm text-secondary" : "text-text-muted hover:text-secondary"
+              )}
+            >
+              Medidas
             </button>
           </div>
-
-          {/* Consistência de Hábitos (Corpo) */}
-          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="font-serif text-2xl font-semibold text-secondary">Consistência de Hábitos</h2>
-              <Activity className="w-5 h-5 text-primary" />
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {habits.length === 0 ? (
-                <p className="text-text-muted italic col-span-2">Nenhum hábito corporal registrado.</p>
-              ) : (
-                habits.map(habit => {
-                  const percentage = calculateHabitWeeklyPercentage(habit);
-                  return (
-                    <div key={habit.id} className="p-4 bg-background rounded-2xl border border-surface-border">
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="font-medium text-secondary">{habit.name}</span>
-                        <span className={cn(
-                          "text-xs font-bold px-2 py-1 rounded-full",
-                          percentage >= 85 ? "bg-emerald-100 text-emerald-700" : "bg-primary/10 text-primary"
-                        )}>
-                          {percentage}%
-                        </span>
-                      </div>
-                      <div className="h-1.5 w-full bg-surface-border rounded-full overflow-hidden">
-                        <div 
-                          className={cn(
-                            "h-full transition-all duration-1000",
-                            percentage >= 85 ? "bg-emerald-500" : "bg-primary"
-                          )}
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Progress Photos Placeholder */}
-          <div 
-            onClick={handleViewPhotos}
-            className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm group cursor-pointer hover:border-primary/30 transition-colors"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-serif text-xl font-semibold text-secondary">Fotos de Progresso</h2>
-              <ChevronRight className="w-5 h-5 text-text-muted group-hover:text-primary transition-colors" />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              {photos.length > 0 && (
-                <div className="aspect-[3/4] bg-background rounded-xl border border-surface-border flex flex-col items-center justify-center text-text-muted relative overflow-hidden">
-                  <img src={photos[photos.length - 1].url} alt="Última foto" className="w-full h-full object-cover" />
-                  <span className="text-xs font-mono absolute top-3 left-3 bg-surface/80 px-2 py-1 rounded-md backdrop-blur-sm">{photos[photos.length - 1].day}</span>
-                </div>
-              )}
-              {photos.length === 0 && (
-                <div className="aspect-[3/4] bg-background rounded-xl border border-surface-border flex flex-col items-center justify-center text-text-muted relative overflow-hidden">
-                  <span className="text-xs font-mono absolute top-3 left-3 bg-surface/80 px-2 py-1 rounded-md backdrop-blur-sm">Dia 01</span>
-                  <Camera className="w-6 h-6 opacity-20" />
-                </div>
-              )}
-              <div 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleNewPhoto();
+        </div>
+        
+        <div className="h-[350px] w-full mb-8">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={weightHistory.length > 0 ? weightHistory : [{day: '01', peso: weight, bf: measurements.bf, muscle: measurements.muscle}]} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E2D9" />
+              <XAxis 
+                dataKey="day" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#6B7280', fontSize: 12 }}
+                dy={10}
+              />
+              <YAxis 
+                domain={['auto', 'auto']} 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#6B7280', fontSize: 12, fontFamily: 'JetBrains Mono' }}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: '#1A1A1A', 
+                  borderRadius: '12px',
+                  border: 'none',
+                  color: '#fff',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
                 }}
-                className="aspect-[3/4] bg-background rounded-xl border border-dashed border-surface-border flex flex-col items-center justify-center text-text-muted hover:bg-surface-hover transition-colors"
-              >
-                {uploadingPhoto ? (
-                  <Loader2 className="w-6 h-6 mb-2 text-primary animate-spin" />
-                ) : (
-                  <Camera className="w-6 h-6 mb-2 text-primary/50" />
-                )}
-                <span className="text-xs font-medium">{uploadingPhoto ? 'Enviando...' : 'Adicionar'}</span>
-              </div>
+                itemStyle={{ color: '#00e5ff', fontFamily: 'JetBrains Mono' }}
+              />
+              <Legend wrapperStyle={{ paddingTop: '20px' }} />
+              
+              {chartTab === "composicao" ? (
+                <>
+                  <Line name="Peso (kg)" type="monotone" dataKey="peso" stroke="#0A2540" strokeWidth={3} dot={{ fill: '#0A2540', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} connectNulls />
+                  <Line name="Músculo (kg)" type="monotone" dataKey="muscle" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} connectNulls />
+                  <Line name="Gordura (%)" type="monotone" dataKey="bf" stroke="#f59e0b" strokeWidth={3} dot={{ fill: '#f59e0b', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} connectNulls />
+                </>
+              ) : (
+                <>
+                  <Line name="Cintura" type="monotone" dataKey="waist" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                  <Line name="Peito" type="monotone" dataKey="chest" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                  <Line name="Braço (E)" type="monotone" dataKey="armL" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                  <Line name="Braço (D)" type="monotone" dataKey="armR" stroke="#d946ef" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                  <Line name="Coxa (E)" type="monotone" dataKey="thighL" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                  <Line name="Coxa (D)" type="monotone" dataKey="thighR" stroke="#14b8a6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                </>
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Resumo de Medidas */}
+        <div className="pt-6 border-t border-surface-border">
+          <h3 className="text-sm font-semibold text-secondary mb-4 uppercase tracking-wider">Resumo Atual de Medidas</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-4">
+            <div className="bg-background p-3 rounded-xl border border-surface-border">
+              <div className="text-[10px] text-text-muted mb-1 uppercase font-bold">Cintura</div>
+              <div className="font-serif font-bold text-secondary">{measurements.waist || '--'} <span className="text-[10px] font-sans font-normal text-text-muted">cm</span></div>
+            </div>
+            <div className="bg-background p-3 rounded-xl border border-surface-border">
+              <div className="text-[10px] text-text-muted mb-1 uppercase font-bold">Peito</div>
+              <div className="font-serif font-bold text-secondary">{measurements.chest || '--'} <span className="text-[10px] font-sans font-normal text-text-muted">cm</span></div>
+            </div>
+            <div className="bg-background p-3 rounded-xl border border-surface-border">
+              <div className="text-[10px] text-text-muted mb-1 uppercase font-bold">Braço E</div>
+              <div className="font-serif font-bold text-secondary">{measurements.armL || '--'} <span className="text-[10px] font-sans font-normal text-text-muted">cm</span></div>
+            </div>
+            <div className="bg-background p-3 rounded-xl border border-surface-border">
+              <div className="text-[10px] text-text-muted mb-1 uppercase font-bold">Braço D</div>
+              <div className="font-serif font-bold text-secondary">{measurements.armR || '--'} <span className="text-[10px] font-sans font-normal text-text-muted">cm</span></div>
+            </div>
+            <div className="bg-background p-3 rounded-xl border border-surface-border">
+              <div className="text-[10px] text-text-muted mb-1 uppercase font-bold">Coxa E</div>
+              <div className="font-serif font-bold text-secondary">{measurements.thighL || '--'} <span className="text-[10px] font-sans font-normal text-text-muted">cm</span></div>
+            </div>
+            <div className="bg-background p-3 rounded-xl border border-surface-border">
+              <div className="text-[10px] text-text-muted mb-1 uppercase font-bold">Coxa D</div>
+              <div className="font-serif font-bold text-secondary">{measurements.thighR || '--'} <span className="text-[10px] font-sans font-normal text-text-muted">cm</span></div>
+            </div>
+            <div className="bg-background p-3 rounded-xl border border-surface-border">
+              <div className="text-[10px] text-text-muted mb-1 uppercase font-bold">Gordura</div>
+              <div className="font-serif font-bold text-secondary">{measurements.bf || '--'} <span className="text-[10px] font-sans font-normal text-text-muted">%</span></div>
+            </div>
+            <div className="bg-background p-3 rounded-xl border border-surface-border">
+              <div className="text-[10px] text-text-muted mb-1 uppercase font-bold">Músculo</div>
+              <div className="font-serif font-bold text-secondary">{measurements.muscle || '--'} <span className="text-[10px] font-sans font-normal text-text-muted">kg</span></div>
             </div>
           </div>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Nutrition Summary */}
+        <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm flex flex-col">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-background border border-surface-border rounded-xl">
+                <Utensils className="w-5 h-5 text-primary" />
+              </div>
+              <h2 className="font-serif text-2xl font-semibold text-secondary">
+                Nutrição {selectedDate.toDateString() === new Date().toDateString() ? "Hoje" : selectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleViewMeals}
+                className="bg-primary/10 text-primary px-4 py-2 rounded-xl text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-2"
+              >
+                Ver Refeições
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-8">
+            <div className="flex flex-col items-center justify-center p-8 bg-background rounded-3xl border border-surface-border relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -z-10" />
+              <div className="relative w-40 h-40 mb-4 flex items-center justify-center">
+                <svg className="w-full h-full -rotate-90">
+                  <circle cx="80" cy="80" r="74" fill="transparent" stroke="#E5E2D9" strokeWidth="10" />
+                  <circle
+                    cx="80"
+                    cy="80"
+                    r="74"
+                    fill="transparent"
+                    stroke="currentColor"
+                    strokeWidth="10"
+                    className="text-primary"
+                    strokeDasharray={`${2 * Math.PI * 74}`}
+                    strokeDashoffset={`${2 * Math.PI * 74 * (1 - Math.min(1, totalCalories / nutritionTargets.calories))}`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-4xl font-serif font-bold text-secondary">{totalCalories}</span>
+                  <span className="text-xs font-bold text-text-muted uppercase tracking-widest">kcal</span>
+                </div>
+              </div>
+              <p className="text-sm text-text-muted font-medium">Consumido de {nutritionTargets.calories} kcal</p>
+            </div>
+
+            <div className="space-y-6">
+              <MacroBar label="Proteínas" current={totalProteins} target={nutritionTargets.protein} unit="g" color="bg-primary" onClick={() => handleLogFood("Proteínas")} />
+              <MacroBar label="Carboidratos" current={totalCarbs} target={nutritionTargets.carbs} unit="g" color="bg-blue-400" onClick={() => handleLogFood("Carboidratos")} />
+              <MacroBar label="Gorduras" current={totalFats} target={nutritionTargets.fats} unit="g" color="bg-yellow-500" onClick={() => handleLogFood("Gorduras")} />
+            </div>
+          </div>
+          
+          <button 
+            onClick={() => setIsMealModalOpen(true)}
+            className="w-full mt-8 py-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Registrar Refeição (IA)
+          </button>
+        </div>
+
+        {/* Consistência de Hábitos (Corpo) */}
+        <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="font-serif text-2xl font-semibold text-secondary">Consistência de Hábitos</h2>
+            <Activity className="w-5 h-5 text-primary" />
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {habits.length === 0 ? (
+              <p className="text-text-muted italic col-span-2">Nenhum hábito corporal registrado.</p>
+            ) : (
+              habits.map(habit => {
+                const percentage = calculateHabitWeeklyPercentage(habit);
+                return (
+                  <div key={habit.id} className="p-4 bg-background rounded-2xl border border-surface-border">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="font-medium text-secondary">{habit.name}</span>
+                      <span className={cn(
+                        "text-xs font-bold px-2 py-1 rounded-full",
+                        percentage >= 85 ? "bg-emerald-100 text-emerald-700" : "bg-primary/10 text-primary"
+                      )}>
+                        {percentage}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-surface-border rounded-full overflow-hidden">
+                      <div 
+                        className={cn(
+                          "h-full transition-all duration-1000",
+                          percentage >= 85 ? "bg-emerald-500" : "bg-primary"
+                        )}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Progress Photos Section (Full Width) */}
+      <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-background border border-surface-border rounded-xl">
+              <Camera className="w-5 h-5 text-primary" />
+            </div>
+            <h2 className="font-serif text-xl font-semibold text-secondary">Fotos de Progresso</h2>
+          </div>
+          <button 
+            onClick={() => setIsPhotoAngleModalOpen(true)}
+            className="bg-primary text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            Adicionar
+          </button>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <div className="min-w-[600px]">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="pb-4 text-left text-[10px] font-bold text-text-muted uppercase tracking-widest border-b border-surface-border w-24">Data</th>
+                  {photoAngles.map(angle => (
+                    <th key={angle.id} className="pb-4 text-center text-[10px] font-bold text-text-muted uppercase tracking-widest border-b border-surface-border">
+                      {angle.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {photosByEntry.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-text-muted italic text-sm">Nenhuma foto registrada ainda.</td>
+                  </tr>
+                ) : (
+                  photosByEntry.slice().reverse().map((entry, idx) => (
+                    <tr key={idx} className="border-b border-surface-border last:border-0 hover:bg-background/30 transition-colors">
+                      <td className="py-3">
+                        <div className="text-sm font-bold text-secondary">{entry.day}</div>
+                        <div className="text-[10px] text-text-muted font-mono">{entry.weight}kg</div>
+                      </td>
+                      {photoAngles.map(angle => (
+                        <td key={angle.id} className="py-2">
+                          <div className="aspect-[3/4] w-16 mx-auto bg-background rounded-lg border border-surface-border overflow-hidden relative group shadow-sm">
+                            {entry.photos[angle.id] ? (
+                              <img src={entry.photos[angle.id]} alt={`${angle.label} ${entry.day}`} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-text-muted/5">
+                                <Camera className="w-3 h-3" />
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Photo Angle Selection Modal */}
+      <Modal 
+        isOpen={isPhotoAngleModalOpen} 
+        onClose={() => setIsPhotoAngleModalOpen(false)} 
+        title="Adicionar Foto de Progresso"
+      >
+        <div className="space-y-6">
+          <div className="flex items-center justify-between bg-background p-4 rounded-2xl border border-surface-border">
+            <span className="text-sm font-medium text-secondary">Data da Foto</span>
+            <input 
+              type="date" 
+              value={selectedPhotoDate}
+              onChange={(e) => setSelectedPhotoDate(e.target.value)}
+              className="bg-transparent border-none outline-none text-primary font-medium focus:ring-0"
+              max={new Date().toISOString().split('T')[0]}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {photoAngles.map(angle => (
+              <button
+                key={angle.id}
+                onClick={() => handleNewPhoto(angle.id)}
+                className="p-4 bg-background border border-surface-border rounded-2xl flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-surface-hover transition-all group"
+              >
+                <div className="p-2 bg-surface rounded-lg group-hover:bg-primary/10 transition-colors">
+                  <Camera className="w-5 h-5 text-text-muted group-hover:text-primary" />
+                </div>
+                <span className="text-xs font-medium text-secondary">{angle.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Modal>
 
       <Modal 
         isOpen={isWeightModalOpen} 
