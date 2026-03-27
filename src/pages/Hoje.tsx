@@ -10,11 +10,13 @@ import {
   Smile,
   Trophy,
   Target,
-  Save
+  Save,
+  Briefcase
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/hooks/useUser";
 import { supabase } from "@/lib/supabase";
+import { useAgencyData } from "@/hooks/useAgencyData";
 
 // Tipos
 type Habit = {
@@ -71,6 +73,20 @@ export function Hoje() {
     target_value: 1,
     color: 'blue'
   });
+
+  // Tabs
+  const [activeTab, setActiveTab] = useState<'pessoal' | 'agencia'>('pessoal');
+
+  // Agency Data
+  const { logs: agencyLogs, updateDailyLog: updateAgencyLog } = useAgencyData();
+  const currentAgencyLog = agencyLogs[new Date(selectedDate.getTime() - (selectedDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0]] || {
+    brAbordagens: 0,
+    brFollowups: 0,
+    brCalls: 0,
+    brPropostas: 0,
+    canAbordagens: 0,
+    canFollowups: 0,
+  };
 
   // Gera os dias da semana atual
   useEffect(() => {
@@ -357,12 +373,39 @@ export function Hoje() {
       <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl pt-6 pb-4 border-b border-surface-border -mx-6 px-6 md:-mx-10 md:px-10 lg:-mx-16 lg:px-16">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-serif font-bold text-primary">Hoje</h1>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors"
+          {activeTab === 'pessoal' && (
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setActiveTab('pessoal')}
+            className={cn(
+              "flex-1 py-2.5 rounded-2xl font-bold transition-all text-sm",
+              activeTab === 'pessoal' ? "bg-primary text-white shadow-md" : "bg-surface text-text-muted hover:bg-surface-hover border border-surface-border"
+            )}
           >
-            <Plus className="w-5 h-5" />
+            Pessoal
           </button>
+          {user?.name === 'Wesley' && (
+            <button
+              onClick={() => setActiveTab('agencia')}
+              className={cn(
+                "flex-1 py-2.5 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2",
+                activeTab === 'agencia' ? "bg-primary text-white shadow-md" : "bg-surface text-text-muted hover:bg-surface-hover border border-surface-border"
+              )}
+            >
+              <Briefcase className="w-4 h-4" />
+              Agência
+            </button>
+          )}
         </div>
 
         <div className="flex justify-between items-center">
@@ -398,8 +441,10 @@ export function Hoje() {
         </div>
       </div>
 
-      {/* Habits List */}
-      <div className="space-y-4">
+      {activeTab === 'pessoal' ? (
+        <>
+          {/* Habits List */}
+          <div className="space-y-4">
         {habits.length === 0 ? (
           <div className="text-center py-12 bg-surface border border-surface-border rounded-3xl">
             <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4">
@@ -650,6 +695,99 @@ export function Hoje() {
           </button>
         </div>
       </div>
+        </>
+      ) : (
+        <div className="space-y-8 animate-in fade-in duration-500">
+          {/* Checklist Agência */}
+          <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm">
+            <h2 className="font-serif text-xl font-bold text-secondary mb-6 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm">🇧🇷</span>
+              Canguru (Brasil)
+            </h2>
+            
+            <div className="space-y-4">
+              {[
+                { key: 'brAbordagens', label: 'Novas Abordagens', max: 20, icon: '🎯' },
+                { key: 'brFollowups', label: 'Follow-ups', max: 12, icon: '🔄' },
+                { key: 'brCalls', label: 'Calls Realizadas', max: 1, icon: '📞' },
+                { key: 'brPropostas', label: 'Propostas Enviadas', max: 1, icon: '📄' },
+              ].map((item) => {
+                const val = currentAgencyLog[item.key as keyof typeof currentAgencyLog] || 0;
+                const dateStr = new Date(selectedDate.getTime() - (selectedDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                return (
+                  <div key={item.key} className="flex items-center justify-between p-4 bg-background border border-surface-border rounded-2xl">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">{item.icon}</span>
+                      <div>
+                        <div className="font-medium text-secondary">{item.label}</div>
+                        <div className="text-xs text-text-muted font-mono">{val}/{item.max}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => updateAgencyLog(dateStr, { [item.key]: Math.max(0, val - 1) })}
+                        className="w-8 h-8 rounded-full bg-surface border border-surface-border flex items-center justify-center text-text-muted hover:text-red-500"
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center font-mono font-bold text-primary">{val}</span>
+                      <button 
+                        onClick={() => updateAgencyLog(dateStr, { [item.key]: Math.min(item.max, val + 1) })}
+                        className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm">
+            <h2 className="font-serif text-xl font-bold text-secondary mb-6 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-sm">🇨🇦</span>
+              Kanoa (Canadá)
+            </h2>
+            
+            <div className="space-y-4">
+              {[
+                { key: 'canAbordagens', label: 'Novas Abordagens', max: 16, icon: '🎯' },
+                { key: 'canFollowups', label: 'Follow-ups', max: 8, icon: '🔄' },
+              ].map((item) => {
+                const val = currentAgencyLog[item.key as keyof typeof currentAgencyLog] || 0;
+                const dateStr = new Date(selectedDate.getTime() - (selectedDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                return (
+                  <div key={item.key} className="flex items-center justify-between p-4 bg-background border border-surface-border rounded-2xl">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">{item.icon}</span>
+                      <div>
+                        <div className="font-medium text-secondary">{item.label}</div>
+                        <div className="text-xs text-text-muted font-mono">{val}/{item.max}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => updateAgencyLog(dateStr, { [item.key]: Math.max(0, val - 1) })}
+                        className="w-8 h-8 rounded-full bg-surface border border-surface-border flex items-center justify-center text-text-muted hover:text-red-500"
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center font-mono font-bold text-primary">{val}</span>
+                      <button 
+                        onClick={() => updateAgencyLog(dateStr, { [item.key]: Math.min(item.max, val + 1) })}
+                        className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Criação de Hábito */}
       {isModalOpen && (

@@ -1,4 +1,4 @@
-export const CYCLE_START_DATE = new Date(2026, 2, 23); // 23 de Março de 2026
+export const CYCLE_START_DATE = new Date(2026, 2, 30); // 30 de Março de 2026
 export const CYCLE_TOTAL_DAYS = 84; // 12 semanas * 7 dias
 
 export function getCycleInfo() {
