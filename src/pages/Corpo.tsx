@@ -11,7 +11,9 @@ import {
   Plus,
   History,
   Loader2,
-  Sparkles
+  Sparkles,
+  Trash2,
+  Edit2
 } from "lucide-react";
 import { 
   LineChart, 
@@ -30,6 +32,7 @@ import { useUser } from "@/hooks/useUser";
 
 import { calculateMacros } from "@/services/geminiService";
 import { getCycleInfo } from "@/lib/cycle";
+import { NUTRITION_TARGETS, DEFAULT_NUTRITION } from "@/config/nutritionTargets";
 
 export function Corpo() {
   const user = useUser();
@@ -38,6 +41,14 @@ export function Corpo() {
   const [isMeasurementsModalOpen, setIsMeasurementsModalOpen] = useState(false);
   const [isFoodModalOpen, setIsFoodModalOpen] = useState(false);
   const [isMealModalOpen, setIsMealModalOpen] = useState(false);
+  const [isEditMealModalOpen, setIsEditMealModalOpen] = useState(false);
+  const [editingMeal, setEditingMeal] = useState<any>(null);
+  const [editMealDescription, setEditMealDescription] = useState("");
+  const [editMealTime, setEditMealTime] = useState("Café da Manhã");
+  const [editMealCalories, setEditMealCalories] = useState("");
+  const [editMealProtein, setEditMealProtein] = useState("");
+  const [editMealCarbs, setEditMealCarbs] = useState("");
+  const [editMealFats, setEditMealFats] = useState("");
   const [mealDescription, setMealDescription] = useState("");
   const [mealTime, setMealTime] = useState("Café da Manhã");
   const [isCalculatingMacros, setIsCalculatingMacros] = useState(false);
@@ -350,6 +361,51 @@ export function Corpo() {
     }
   };
 
+  const handleEditMealClick = (meal: any) => {
+    setEditingMeal(meal);
+    const match = meal.name?.match(/^\[(.*?)\]\s*(.*)$/);
+    setEditMealTime(match ? match[1] : 'Outros');
+    setEditMealDescription(match ? match[2] : meal.name);
+    setEditMealCalories(meal.calories?.toString() || "0");
+    setEditMealProtein(meal.protein?.toString() || "0");
+    setEditMealCarbs(meal.carbs?.toString() || "0");
+    setEditMealFats(meal.fat?.toString() || "0");
+    setIsEditMealModalOpen(true);
+  };
+
+  const handleDeleteMeal = async (id: string) => {
+    if (!confirm("Tem certeza que deseja apagar esta refeição?")) return;
+    try {
+      const { error } = await supabase.from('food_logs').delete().eq('id', id);
+      if (error) throw error;
+      fetchBodyData();
+    } catch (error) {
+      console.error("Erro ao apagar refeição:", error);
+      alert("Erro ao apagar refeição.");
+    }
+  };
+
+  const handleUpdateMeal = async () => {
+    if (!editingMeal || !user) return;
+    try {
+      const { error } = await supabase.from('food_logs').update({
+        name: `[${editMealTime}] ${editMealDescription}`,
+        calories: parseInt(editMealCalories) || 0,
+        protein: parseInt(editMealProtein) || 0,
+        carbs: parseInt(editMealCarbs) || 0,
+        fat: parseInt(editMealFats) || 0,
+      }).eq('id', editingMeal.id);
+
+      if (error) throw error;
+      setIsEditMealModalOpen(false);
+      setEditingMeal(null);
+      fetchBodyData();
+    } catch (error) {
+      console.error("Erro ao atualizar refeição:", error);
+      alert("Erro ao atualizar refeição.");
+    }
+  };
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
@@ -431,9 +487,7 @@ export function Corpo() {
     setViewingGallery(true);
   };
 
-  const nutritionTargets = user?.name === 'Sarah' 
-    ? { calories: 1200, protein: 96, carbs: 135, fats: 30 }
-    : { calories: 2200, protein: 180, carbs: 170, fats: 80 }; // Wesley's targets
+  const nutritionTargets = user?.name ? (NUTRITION_TARGETS[user.name] ?? DEFAULT_NUTRITION) : DEFAULT_NUTRITION;
 
   useEffect(() => {
     const generateFeedback = async () => {
@@ -590,6 +644,20 @@ export function Corpo() {
                           <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-yellow-500" /> {meal.fat}g gord</span>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => handleEditMealClick(meal)}
+                          className="p-2 text-text-muted hover:text-primary transition-colors rounded-full hover:bg-surface"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteMeal(meal.id)}
+                          className="p-2 text-text-muted hover:text-red-500 transition-colors rounded-full hover:bg-surface"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -683,6 +751,86 @@ export function Corpo() {
               ) : (
                 "Calcular e Salvar"
               )}
+            </button>
+          </div>
+        </Modal>
+
+        <Modal 
+          isOpen={isEditMealModalOpen} 
+          onClose={() => setIsEditMealModalOpen(false)} 
+          title="Editar Refeição"
+        >
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-text-muted uppercase tracking-widest px-1">Qual refeição?</label>
+              <select
+                value={editMealTime}
+                onChange={(e) => setEditMealTime(e.target.value)}
+                className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium text-text-main"
+              >
+                <option value="Café da Manhã">Café da Manhã</option>
+                <option value="Almoço">Almoço</option>
+                <option value="Café da Tarde">Café da Tarde</option>
+                <option value="Jantar">Jantar</option>
+                <option value="Lanches">Lanches/Outros</option>
+                <option value="Outros">Outros</option>
+              </select>
+            </div>
+
+            <div className="p-1 bg-background rounded-2xl border border-surface-border">
+              <textarea 
+                placeholder="Ex: 80g de arroz, 40g de feijão, 130g de frango grelhado..." 
+                value={editMealDescription}
+                onChange={(e) => setEditMealDescription(e.target.value)}
+                className="w-full h-32 bg-transparent border-none outline-none p-4 text-secondary resize-none focus:ring-0"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-text-muted uppercase tracking-widest px-1">Calorias</label>
+                <input
+                  type="number"
+                  value={editMealCalories}
+                  onChange={(e) => setEditMealCalories(e.target.value)}
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 text-secondary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-text-muted uppercase tracking-widest px-1">Proteínas (g)</label>
+                <input
+                  type="number"
+                  value={editMealProtein}
+                  onChange={(e) => setEditMealProtein(e.target.value)}
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 text-secondary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-text-muted uppercase tracking-widest px-1">Carboidratos (g)</label>
+                <input
+                  type="number"
+                  value={editMealCarbs}
+                  onChange={(e) => setEditMealCarbs(e.target.value)}
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 text-secondary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-text-muted uppercase tracking-widest px-1">Gorduras (g)</label>
+                <input
+                  type="number"
+                  value={editMealFats}
+                  onChange={(e) => setEditMealFats(e.target.value)}
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 text-secondary"
+                />
+              </div>
+            </div>
+            
+            <button 
+              onClick={handleUpdateMeal}
+              disabled={!editMealDescription}
+              className="w-full p-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              Salvar Alterações
             </button>
           </div>
         </Modal>
