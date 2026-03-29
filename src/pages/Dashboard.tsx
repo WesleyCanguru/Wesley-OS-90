@@ -32,7 +32,42 @@ export function Dashboard() {
   const user = useUser();
   const { startDate, endDate, currentDay, totalDays, cycleProgress, currentWeek } = getCycleInfo();
   const [loading, setLoading] = useState(true);
+  const [isResetting, setIsResetting] = useState(false);
   
+  const handleResetData = async () => {
+    const confirmReset = window.confirm("ATENÇÃO: Isso vai apagar TODOS os dados de Wesley e Sarah (Hábitos, Metas, Check-ins, Agência). Tem certeza absoluta?");
+    if (!confirmReset) return;
+    
+    setIsResetting(true);
+    try {
+      const usersToClear = ['Wesley', 'Sarah'];
+      
+      // Limpar Supabase
+      await supabase.from('habit_logs').delete().in('user_name', usersToClear);
+      await supabase.from('habits').delete().in('user_name', usersToClear);
+      await supabase.from('daily_checkins').delete().in('user_name', usersToClear);
+      await supabase.from('goals').delete().in('user_name', usersToClear);
+      await supabase.from('agency_daily_logs').delete().in('user_name', usersToClear);
+      await supabase.from('agency_clients').delete().in('user_name', usersToClear);
+      await supabase.from('agency_metrics').delete().in('user_name', usersToClear);
+      
+      // Limpar LocalStorage
+      usersToClear.forEach(name => {
+        localStorage.removeItem(`agency_logs_${name}`);
+        localStorage.removeItem(`agency_metrics_${name}`);
+        localStorage.removeItem(`agency_clients_${name}`);
+      });
+      
+      alert("Todos os dados foram apagados com sucesso! A página será recarregada.");
+      window.location.reload();
+    } catch (error) {
+      console.error("Erro ao resetar dados:", error);
+      alert("Ocorreu um erro ao tentar apagar os dados. Verifique o console.");
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
   };
@@ -614,6 +649,18 @@ export function Dashboard() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Danger Zone - Reset Data */}
+      <div className="mt-12 pt-8 border-t border-surface-border flex justify-center">
+        <button 
+          onClick={handleResetData}
+          disabled={isResetting}
+          className="flex items-center gap-2 px-6 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition-colors border border-red-200"
+        >
+          {isResetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+          {isResetting ? "Apagando Dados..." : "Zerar Aplicativo (Wesley e Sarah)"}
+        </button>
       </div>
     </div>
   );

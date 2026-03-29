@@ -22,11 +22,12 @@ import { useAgencyData, AgencyClient } from "@/hooks/useAgencyData";
 
 export function Agencia() {
   const user = useUser();
-  const { metrics, updateMetrics, getWeeklySums, clients, addClient, removeClient } = useAgencyData();
+  const { metrics, updateMetrics, getWeeklySums, clients, addClient, updateClient, removeClient } = useAgencyData();
   
   const [activeTab, setActiveTab] = useState<'macro' | 'mrr'>('macro');
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<AgencyClient | null>(null);
   const [editMetrics, setEditMetrics] = useState(metrics);
   
   const [newClientData, setNewClientData] = useState<Omit<AgencyClient, 'id'>>({
@@ -68,8 +69,37 @@ export function Agencia() {
 
   const handleAddClient = (e: FormEvent) => {
     e.preventDefault();
-    addClient(newClientData);
+    if (editingClient) {
+      updateClient(editingClient.id, newClientData);
+    } else {
+      addClient(newClientData);
+    }
     setIsNewClientModalOpen(false);
+    setEditingClient(null);
+    setNewClientData({
+      name: '',
+      service: '',
+      mrr: 0,
+      currency: 'BRL',
+      startDate: new Date().toISOString().split('T')[0]
+    });
+  };
+
+  const handleEditClient = (client: AgencyClient) => {
+    setEditingClient(client);
+    setNewClientData({
+      name: client.name,
+      service: client.service,
+      mrr: client.mrr,
+      currency: client.currency,
+      startDate: client.startDate
+    });
+    setIsNewClientModalOpen(true);
+  };
+
+  const handleCloseClientModal = () => {
+    setIsNewClientModalOpen(false);
+    setEditingClient(null);
     setNewClientData({
       name: '',
       service: '',
@@ -350,12 +380,20 @@ export function Agencia() {
                         {client.mrr.toLocaleString('pt-BR')}
                       </td>
                       <td className="p-4 text-right">
-                        <button 
-                          onClick={() => removeClient(client.id)}
-                          className="text-text-muted hover:text-red-500 transition-colors p-2"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => handleEditClient(client)}
+                            className="text-text-muted hover:text-primary transition-colors p-2"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => removeClient(client.id)}
+                            className="text-text-muted hover:text-red-500 transition-colors p-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -489,14 +527,16 @@ export function Agencia() {
         </div>
       )}
 
-      {/* Modal Novo Cliente */}
+      {/* Modal Novo/Editar Cliente */}
       {isNewClientModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-surface border border-surface-border rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-6 border-b border-surface-border">
-              <h2 className="font-serif text-2xl font-semibold text-secondary">Novo Cliente</h2>
+              <h2 className="font-serif text-2xl font-semibold text-secondary">
+                {editingClient ? 'Editar Cliente' : 'Novo Cliente'}
+              </h2>
               <button 
-                onClick={() => setIsNewClientModalOpen(false)}
+                onClick={handleCloseClientModal}
                 className="p-2 hover:bg-surface-hover rounded-full transition-colors"
               >
                 <X className="w-5 h-5 text-text-muted" />
@@ -571,7 +611,7 @@ export function Agencia() {
                   type="submit"
                   className="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary/90 transition-all shadow-md"
                 >
-                  Adicionar Cliente
+                  {editingClient ? 'Salvar Alterações' : 'Adicionar Cliente'}
                 </button>
               </div>
             </form>

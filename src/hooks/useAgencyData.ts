@@ -138,6 +138,18 @@ export function useAgencyData() {
     updateMetrics({ ...metrics, mrrBr: totalBr, mrrCan: totalCan });
   };
 
+  const updateClient = (id: string, updates: Partial<AgencyClient>) => {
+    if (!user) return;
+    const newClients = clients.map(c => c.id === id ? { ...c, ...updates } : c);
+    setClients(newClients);
+    localStorage.setItem(`agency_clients_${user.name}`, JSON.stringify(newClients));
+    
+    // Auto-update MRR
+    const totalBr = newClients.filter(c => c.currency === 'BRL').reduce((sum, c) => sum + c.mrr, 0);
+    const totalCan = newClients.filter(c => c.currency === 'CAD').reduce((sum, c) => sum + c.mrr, 0);
+    updateMetrics({ ...metrics, mrrBr: totalBr, mrrCan: totalCan });
+  };
+
   const removeClient = (id: string) => {
     if (!user) return;
     const newClients = clients.filter(c => c.id !== id);
@@ -187,6 +199,7 @@ export function useAgencyData() {
     updateDailyLog,
     updateMetrics,
     addClient,
+    updateClient,
     removeClient,
     getWeeklySums
   };
