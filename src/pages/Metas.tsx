@@ -54,7 +54,9 @@ export function Metas() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'macro' | 'tracker'>('macro');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isHabitModalOpen, setIsHabitModalOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
   
   // Dados Macro
   const [goals, setGoals] = useState<{ corpo: any[], alma: any[], trabalho: any[] }>({ corpo: [], alma: [], trabalho: [] });
@@ -63,11 +65,19 @@ export function Metas() {
     category: "Corpo",
     target_value: "",
     unit: "",
-    start_value: ""
+    start_value: "",
+    current_value: ""
   });
 
   // Dados Rastreador
   const [habits, setHabits] = useState<Habit[]>([]);
+  const [newHabit, setNewHabit] = useState<Omit<Habit, 'id'>>({
+    name: "",
+    frequency_per_week: 7,
+    type: 'check',
+    target_value: 0,
+    unit: ""
+  });
   const [weeklyLogs, setWeeklyLogs] = useState<Record<string, Record<string, HabitLog>>>({}); // habit_id -> date -> log
   const [weekDates, setWeekDates] = useState<Date[]>([]);
   const celebratedHabits = useRef<Set<string>>(new Set());
@@ -184,6 +194,8 @@ export function Metas() {
             title: newGoal.title,
             category: newGoal.category,
             target_value: parseFloat(newGoal.target_value),
+            current_value: parseFloat(newGoal.current_value || "0"),
+            start_value: parseFloat(newGoal.start_value || "0"),
             unit: newGoal.unit
           })
           .eq('id', editingGoalId);
@@ -198,7 +210,7 @@ export function Metas() {
             title: newGoal.title,
             category: newGoal.category,
             target_value: parseFloat(newGoal.target_value),
-            current_value: parseFloat(newGoal.start_value || "0"),
+            current_value: parseFloat(newGoal.current_value || newGoal.start_value || "0"),
             start_value: parseFloat(newGoal.start_value || "0"),
             unit: newGoal.unit
           }]);
@@ -206,7 +218,7 @@ export function Metas() {
         if (error) throw error;
       }
       
-      setNewGoal({ title: "", category: "Corpo", target_value: "", unit: "", start_value: "" });
+      setNewGoal({ title: "", category: "Corpo", target_value: "", unit: "", start_value: "", current_value: "" });
       fetchGoals();
     } catch (error) {
       console.error("Erro ao salvar meta:", error);
@@ -221,11 +233,14 @@ export function Metas() {
       category: goal.category || "Corpo", // Fallback if category is missing in the object
       target_value: goal.target.toString(),
       unit: goal.unit,
-      start_value: goal.start.toString()
+      start_value: (goal.start || 0).toString(),
+      current_value: (goal.current || 0).toString()
     });
+    setIsEditModalOpen(true);
   };
 
   const handleDeleteGoal = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta meta?")) return;
     try {
       const { error } = await supabase
         .from('goals')
@@ -237,6 +252,73 @@ export function Metas() {
     } catch (error) {
       console.error("Erro ao deletar meta:", error);
       alert("Erro ao deletar meta.");
+    }
+  };
+
+  const handleEditHabitClick = (habit: Habit) => {
+    setEditingHabitId(habit.id);
+    setNewHabit({
+      name: habit.name,
+      frequency_per_week: habit.frequency_per_week,
+      type: habit.type,
+      target_value: habit.target_value,
+      unit: habit.unit
+    });
+    setIsHabitModalOpen(true);
+  };
+
+  const handleDeleteHabit = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir este hábito?")) return;
+    try {
+      const { error } = await supabase
+        .from('habits')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchTrackerData();
+    } catch (error) {
+      console.error("Erro ao deletar hábito:", error);
+    }
+  };
+
+  const handleAddHabit = async () => {
+    if (!newHabit.name || !user) return;
+    try {
+      if (editingHabitId) {
+        const { error } = await supabase
+          .from('habits')
+          .update({
+            name: newHabit.name,
+            frequency_per_week: newHabit.frequency_per_week,
+            type: newHabit.type,
+            target_value: newHabit.target_value,
+            unit: newHabit.unit
+          })
+          .eq('id', editingHabitId);
+
+        if (error) throw error;
+        setEditingHabitId(null);
+      } else {
+        const { error } = await supabase
+          .from('habits')
+          .insert([{
+            user_name: user.name,
+            name: newHabit.name,
+            frequency_per_week: newHabit.frequency_per_week,
+            type: newHabit.type,
+            target_value: newHabit.target_value,
+            unit: newHabit.unit
+          }]);
+
+        if (error) throw error;
+      }
+      
+      setNewHabit({ name: "", frequency_per_week: 7, type: 'check', target_value: 0, unit: "" });
+      setIsHabitModalOpen(false);
+      fetchTrackerData();
+    } catch (error) {
+      console.error("Erro ao salvar hábito:", error);
     }
   };
 
@@ -432,7 +514,7 @@ export function Metas() {
               </div>
               <div className="space-y-4">
                 {goals.corpo.map(goal => (
-                  <GoalCard key={goal.id} goal={goal} color="bg-emerald-500" />
+                  <GoalCard key={goal.id} goal={goal} color="bg-emerald-500" onEdit={handleEditGoalClick} />
                 ))}
                 {goals.corpo.length === 0 && <p className="text-sm text-text-muted italic">Nenhuma meta definida.</p>}
               </div>
@@ -449,7 +531,7 @@ export function Metas() {
               </div>
               <div className="space-y-4">
                 {goals.alma.map(goal => (
-                  <GoalCard key={goal.id} goal={goal} color="bg-blue-500" />
+                  <GoalCard key={goal.id} goal={goal} color="bg-blue-500" onEdit={handleEditGoalClick} />
                 ))}
                 {goals.alma.length === 0 && <p className="text-sm text-text-muted italic">Nenhuma meta definida.</p>}
               </div>
@@ -466,7 +548,7 @@ export function Metas() {
               </div>
               <div className="space-y-4">
                 {goals.trabalho.map(goal => (
-                  <GoalCard key={goal.id} goal={goal} color="bg-orange-500" />
+                  <GoalCard key={goal.id} goal={goal} color="bg-orange-500" onEdit={handleEditGoalClick} />
                 ))}
                 {goals.trabalho.length === 0 && <p className="text-sm text-text-muted italic">Nenhuma meta definida.</p>}
               </div>
@@ -482,7 +564,19 @@ export function Metas() {
               <p className="text-text-muted text-sm mt-1">Acompanhamento da semana atual. Preencha na aba "Hoje".</p>
             </div>
             
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-4 items-center">
+              <button 
+                onClick={() => {
+                  setEditingHabitId(null);
+                  setNewHabit({ name: "", frequency_per_week: 7, type: 'check', target_value: 0, unit: "" });
+                  setIsHabitModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Adicionar Hábito</span>
+              </button>
+
               <div className="flex flex-col items-center justify-center px-4 py-2 bg-surface border border-surface-border rounded-xl">
                 <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Semana</span>
                 <span className="text-lg font-serif font-bold text-primary">{currentWeek} <span className="text-sm text-text-muted font-sans">/ 12</span></span>
@@ -516,7 +610,7 @@ export function Metas() {
                       <div className="text-[10px] font-normal mt-0.5 opacity-70">{weekDates[i]?.getDate()}</div>
                     </th>
                   ))}
-                  <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-24">% Sem.</th>
+                  <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-12">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
@@ -598,6 +692,24 @@ export function Metas() {
                             {percentage}%
                           </div>
                         </td>
+
+                        {/* Ações */}
+                        <td className="p-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button 
+                              onClick={() => handleEditHabitClick(habit)}
+                              className="p-1.5 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteHabit(habit.id)}
+                              className="p-1.5 text-text-muted hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })
@@ -607,6 +719,91 @@ export function Metas() {
           </div>
         </div>
       )}
+
+      {/* Modal de Edição de Hábito */}
+      <Modal 
+        isOpen={isHabitModalOpen} 
+        onClose={() => setIsHabitModalOpen(false)}
+        title={editingHabitId ? "Editar Hábito" : "Novo Hábito"}
+      >
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-secondary">Nome do Hábito</label>
+            <input 
+              type="text"
+              value={newHabit.name}
+              onChange={(e) => setNewHabit({...newHabit, name: e.target.value})}
+              placeholder="Ex: Beber 3L de água"
+              className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-secondary">Tipo</label>
+              <select 
+                value={newHabit.type}
+                onChange={(e) => setNewHabit({...newHabit, type: e.target.value as any})}
+                className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+              >
+                <option value="check">Check Diário</option>
+                <option value="numeric">Numérico (Meta)</option>
+                <option value="negative">Negativo (Evitar)</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-secondary">Freq. Semanal</label>
+              <input 
+                type="number"
+                min="1"
+                max="7"
+                value={newHabit.frequency_per_week}
+                onChange={(e) => setNewHabit({...newHabit, frequency_per_week: parseInt(e.target.value)})}
+                className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+              />
+            </div>
+          </div>
+
+          {newHabit.type === 'numeric' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-secondary">Meta Diária</label>
+                <input 
+                  type="number"
+                  value={newHabit.target_value}
+                  onChange={(e) => setNewHabit({...newHabit, target_value: parseFloat(e.target.value)})}
+                  className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-secondary">Unidade</label>
+                <input 
+                  type="text"
+                  value={newHabit.unit}
+                  onChange={(e) => setNewHabit({...newHabit, unit: e.target.value})}
+                  placeholder="Ex: ml, kg, min"
+                  className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-4">
+            <button 
+              onClick={() => setIsHabitModalOpen(false)}
+              className="flex-1 px-4 py-3 border border-surface-border text-secondary rounded-xl hover:bg-surface-hover transition-colors font-medium"
+            >
+              Cancelar
+            </button>
+            <button 
+              onClick={handleAddHabit}
+              className="flex-1 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors font-medium shadow-sm"
+            >
+              {editingHabitId ? "Salvar Alterações" : "Criar Hábito"}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Edit Goals Modal */}
       <Modal 
@@ -675,6 +872,26 @@ export function Metas() {
                 </select>
               </div>
               <div className="space-y-1.5">
+                <label className="text-xs font-medium text-text-muted ml-1">Valor Inicial</label>
+                <input 
+                  type="number" 
+                  value={newGoal.start_value}
+                  onChange={(e) => setNewGoal({...newGoal, start_value: e.target.value})}
+                  placeholder="0" 
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-2 text-sm outline-none focus:border-primary" 
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-text-muted ml-1">Valor Atual</label>
+                <input 
+                  type="number" 
+                  value={newGoal.current_value}
+                  onChange={(e) => setNewGoal({...newGoal, current_value: e.target.value})}
+                  placeholder="0" 
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-2 text-sm outline-none focus:border-primary" 
+                />
+              </div>
+              <div className="space-y-1.5">
                 <label className="text-xs font-medium text-text-muted ml-1">Meta Final</label>
                 <input 
                   type="number" 
@@ -700,7 +917,7 @@ export function Metas() {
                 <button 
                   onClick={() => {
                     setEditingGoalId(null);
-                    setNewGoal({ title: "", category: "Corpo", target_value: "", unit: "", start_value: "" });
+                    setNewGoal({ title: "", category: "Corpo", target_value: "", unit: "", start_value: "", current_value: "" });
                   }}
                   className="flex-1 py-3 bg-surface border border-surface-border text-text-muted rounded-xl text-sm font-medium hover:bg-surface-border/50 transition-colors"
                 >
@@ -736,7 +953,7 @@ export function Metas() {
   );
 }
 
-function GoalCard({ goal, color }: any) {
+function GoalCard({ goal, color, onEdit }: any) {
   let percentage = 0;
   if (goal.inverse) {
     const totalDiff = goal.start - goal.target;
@@ -749,9 +966,17 @@ function GoalCard({ goal, color }: any) {
   }
 
   return (
-    <div className="bg-surface border border-surface-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all">
+    <div className="bg-surface border border-surface-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all group relative">
+      {onEdit && (
+        <button 
+          onClick={() => onEdit(goal)}
+          className="absolute top-4 right-4 p-2 bg-background border border-surface-border rounded-lg text-text-muted hover:text-primary opacity-0 group-hover:opacity-100 transition-all"
+        >
+          <Edit2 className="w-4 h-4" />
+        </button>
+      )}
       <div className="flex justify-between items-start mb-4">
-        <h4 className="font-medium text-secondary leading-snug pr-4">{goal.title}</h4>
+        <h4 className="font-medium text-secondary leading-snug pr-10">{goal.title}</h4>
         {percentage >= 100 ? (
           <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
         ) : (

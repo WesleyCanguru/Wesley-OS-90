@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useUser } from './useUser';
+import { supabase } from '@/lib/supabase';
 
 export type AgencyLead = {
   id: string;
@@ -26,6 +27,9 @@ export type AgencyMetrics = {
   caixaMesBr: number;
   brFechamentos: number;
   canFechamentos: number;
+  targetMrrBr: number;
+  targetMrrCan: number;
+  targetCaixaMes: number;
 };
 
 export interface AgencyClient {
@@ -37,112 +41,216 @@ export interface AgencyClient {
   startDate: string;
 }
 
-const DEFAULT_METRICS: AgencyMetrics = {
+const WESLEY_DEFAULT_METRICS: AgencyMetrics = {
   mrrBr: 8000,
   mrrCan: 0,
   caixaTotalCad: 14000,
   caixaMesBr: 2500,
   brFechamentos: 0,
   canFechamentos: 0,
+  targetMrrBr: 30000,
+  targetMrrCan: 3000,
+  targetCaixaMes: 10000,
 };
 
-const DEFAULT_CLIENTS: AgencyClient[] = [
-  { id: '1', name: 'Cliente 1 (Exemplo)', service: 'Assessoria Completa', mrr: 5000, currency: 'BRL', startDate: '2026-01-01' },
-  { id: '2', name: 'Cliente 2 (Exemplo)', service: 'Gestão de Tráfego', mrr: 1500, currency: 'BRL', startDate: '2026-02-01' },
-  { id: '3', name: 'Cliente 3 (Exemplo)', service: 'Gestão de Tráfego', mrr: 1500, currency: 'BRL', startDate: '2026-03-01' },
-];
+const GENERIC_DEFAULT_METRICS: AgencyMetrics = {
+  mrrBr: 0,
+  mrrCan: 0,
+  caixaTotalCad: 0,
+  caixaMesBr: 0,
+  brFechamentos: 0,
+  canFechamentos: 0,
+  targetMrrBr: 5000,
+  targetMrrCan: 0,
+  targetCaixaMes: 2000,
+};
 
 export function useAgencyData() {
   const user = useUser();
-  const [logs, setLogs] = useState<Record<string, AgencyDailyLog>>({});
-  const [metrics, setMetrics] = useState<AgencyMetrics>(DEFAULT_METRICS);
-  const [clients, setClients] = useState<AgencyClient[]>(DEFAULT_CLIENTS);
+  
+  const defaultMetrics = user?.name === 'Wesley' ? WESLEY_DEFAULT_METRICS : GENERIC_DEFAULT_METRICS;
 
-  // Load data
+  const [logs, setLogs] = useState<Record<string, AgencyDailyLog>>({});
+  const [metrics, setMetrics] = useState<AgencyMetrics>(defaultMetrics);
+  const [clients, setClients] = useState<AgencyClient[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load data from Supabase
   useEffect(() => {
     if (!user) return;
     
-    const storedLogs = localStorage.getItem(`agency_logs_${user.name}`);
-    if (storedLogs) {
+    const fetchData = async () => {
       try {
-        setLogs(JSON.parse(storedLogs));
-      } catch (e) {
-        console.error("Failed to parse agency logs", e);
-      }
-    }
+        // Fetch Metrics
+        const { data: metricsData } = await supabase
+          .from('agency_metrics')
+          .select('*')
+          .eq('user_name', user.name)
+          .single();
 
-    const storedMetrics = localStorage.getItem(`agency_metrics_${user.name}`);
-    if (storedMetrics) {
-      try {
-        setMetrics(JSON.parse(storedMetrics));
-      } catch (e) {
-        console.error("Failed to parse agency metrics", e);
-      }
-    }
+        if (metricsData) {
+          setMetrics({
+            mrrBr: metricsData.mrr_br,
+            mrrCan: metricsData.mrr_can,
+            caixaTotalCad: metricsData.caixa_total_cad,
+            caixaMesBr: metricsData.caixa_mes_br,
+            brFechamentos: metricsData.br_fechamentos,
+            canFechamentos: metricsData.can_fechamentos,
+            targetMrrBr: metricsData.target_mrr_br,
+            targetMrrCan: metricsData.target_mrr_can,
+            targetCaixaMes: metricsData.target_caixa_mes,
+          });
+        } else {
+          // Seed default metrics
+          await supabase.from('agency_metrics').insert([{
+            user_name: user.name,
+            mrr_br: defaultMetrics.mrrBr,
+            mrr_can: defaultMetrics.mrrCan,
+            caixa_total_cad: defaultMetrics.caixaTotalCad,
+            caixa_mes_br: defaultMetrics.caixaMesBr,
+            br_fechamentos: defaultMetrics.brFechamentos,
+            can_fechamentos: defaultMetrics.canFechamentos,
+            target_mrr_br: defaultMetrics.targetMrrBr,
+            target_mrr_can: defaultMetrics.targetMrrCan,
+            target_caixa_mes: defaultMetrics.targetCaixaMes,
+          }]);
+        }
 
-    const storedClients = localStorage.getItem(`agency_clients_${user.name}`);
-    if (storedClients) {
-      try {
-        setClients(JSON.parse(storedClients));
+        // Fetch Clients
+        const { data: clientsData } = await supabase
+          .from('agency_clients')
+          .select('*')
+          .eq('user_name', user.name);
+        
+        if (clientsData) {
+          setClients(clientsData.map(c => ({
+            id: c.id,
+            name: c.name,
+            service: c.service,
+            mrr: c.mrr,
+            currency: c.currency,
+            startDate: c.start_date
+          })));
+        }
+
+        // Fetch Logs
+        const { data: logsData } = await supabase
+          .from('agency_logs')
+          .select('*')
+          .eq('user_name', user.name);
+        
+        if (logsData) {
+          const logsMap: Record<string, AgencyDailyLog> = {};
+          logsData.forEach(log => {
+            logsMap[log.date] = {
+              date: log.date,
+              brAbordagens: log.br_abordagens,
+              brFollowups: log.br_followups,
+              brCalls: log.br_calls,
+              brPropostas: log.br_propostas,
+              canAbordagens: log.can_abordagens,
+              canFollowups: log.can_followups,
+            };
+          });
+          setLogs(logsMap);
+        }
       } catch (e) {
-        console.error("Failed to parse agency clients", e);
+        console.error("Error fetching agency data", e);
+      } finally {
+        setLoading(false);
       }
-    } else {
-      localStorage.setItem(`agency_clients_${user.name}`, JSON.stringify(DEFAULT_CLIENTS));
-    }
+    };
+
+    fetchData();
   }, [user]);
 
   // Save logs
-  const updateDailyLog = (date: string, updates: Partial<AgencyDailyLog>) => {
+  const updateDailyLog = async (date: string, updates: Partial<AgencyDailyLog>) => {
     if (!user) return;
     
-    setLogs(prev => {
-      const current = prev[date] || {
-        date,
-        brAbordagens: 0,
-        brFollowups: 0,
-        brCalls: 0,
-        brPropostas: 0,
-        canAbordagens: 0,
-        canFollowups: 0,
-        leads: [],
-      };
-      
-      const newLogs = {
-        ...prev,
-        [date]: { ...current, ...updates }
-      };
-      
-      localStorage.setItem(`agency_logs_${user.name}`, JSON.stringify(newLogs));
-      return newLogs;
+    const current = logs[date] || {
+      date,
+      brAbordagens: 0,
+      brFollowups: 0,
+      brCalls: 0,
+      brPropostas: 0,
+      canAbordagens: 0,
+      canFollowups: 0,
+    };
+    
+    const updatedLog = { ...current, ...updates };
+    setLogs(prev => ({ ...prev, [date]: updatedLog }));
+
+    await supabase.from('agency_logs').upsert({
+      user_name: user.name,
+      date,
+      br_abordagens: updatedLog.brAbordagens,
+      br_followups: updatedLog.brFollowups,
+      br_calls: updatedLog.brCalls,
+      br_propostas: updatedLog.brPropostas,
+      can_abordagens: updatedLog.canAbordagens,
+      can_followups: updatedLog.canFollowups,
     });
   };
 
   // Save metrics
-  const updateMetrics = (newMetrics: AgencyMetrics) => {
+  const updateMetrics = async (newMetrics: AgencyMetrics) => {
     if (!user) return;
     setMetrics(newMetrics);
-    localStorage.setItem(`agency_metrics_${user.name}`, JSON.stringify(newMetrics));
-  };
-
-  const addClient = (client: Omit<AgencyClient, 'id'>) => {
-    if (!user) return;
-    const newClient = { ...client, id: Math.random().toString(36).substr(2, 9) };
-    const newClients = [...clients, newClient];
-    setClients(newClients);
-    localStorage.setItem(`agency_clients_${user.name}`, JSON.stringify(newClients));
     
-    // Auto-update MRR
-    const totalBr = newClients.filter(c => c.currency === 'BRL').reduce((sum, c) => sum + c.mrr, 0);
-    const totalCan = newClients.filter(c => c.currency === 'CAD').reduce((sum, c) => sum + c.mrr, 0);
-    updateMetrics({ ...metrics, mrrBr: totalBr, mrrCan: totalCan });
+    await supabase.from('agency_metrics').update({
+      mrr_br: newMetrics.mrrBr,
+      mrr_can: newMetrics.mrrCan,
+      caixa_total_cad: newMetrics.caixaTotalCad,
+      caixa_mes_br: newMetrics.caixaMesBr,
+      br_fechamentos: newMetrics.brFechamentos,
+      can_fechamentos: newMetrics.canFechamentos,
+      target_mrr_br: newMetrics.targetMrrBr,
+      target_mrr_can: newMetrics.targetMrrCan,
+      target_caixa_mes: newMetrics.targetCaixaMes,
+    }).eq('user_name', user.name);
+
+    // Also update MRR targets in goals table for Metas.tsx
+    await supabase.from('goals').update({ target_value: newMetrics.targetMrrBr }).eq('user_name', user.name).eq('title', 'MRR Total');
+    await supabase.from('goals').update({ target_value: newMetrics.targetCaixaMes }).eq('user_name', user.name).eq('title', 'Caixa Mensal');
   };
 
-  const updateClient = (id: string, updates: Partial<AgencyClient>) => {
+  const addClient = async (client: Omit<AgencyClient, 'id'>) => {
     if (!user) return;
+    
+    const { data, error } = await supabase.from('agency_clients').insert([{
+      user_name: user.name,
+      name: client.name,
+      service: client.service,
+      mrr: client.mrr,
+      currency: client.currency,
+      start_date: client.startDate
+    }]).select().single();
+
+    if (data) {
+      const newClients = [...clients, { ...client, id: data.id }];
+      setClients(newClients);
+      
+      // Auto-update MRR
+      const totalBr = newClients.filter(c => c.currency === 'BRL').reduce((sum, c) => sum + c.mrr, 0);
+      const totalCan = newClients.filter(c => c.currency === 'CAD').reduce((sum, c) => sum + c.mrr, 0);
+      updateMetrics({ ...metrics, mrrBr: totalBr, mrrCan: totalCan });
+    }
+  };
+
+  const updateClient = async (id: string, updates: Partial<AgencyClient>) => {
+    if (!user) return;
+    
+    await supabase.from('agency_clients').update({
+      name: updates.name,
+      service: updates.service,
+      mrr: updates.mrr,
+      currency: updates.currency,
+      start_date: updates.startDate
+    }).eq('id', id);
+
     const newClients = clients.map(c => c.id === id ? { ...c, ...updates } : c);
     setClients(newClients);
-    localStorage.setItem(`agency_clients_${user.name}`, JSON.stringify(newClients));
     
     // Auto-update MRR
     const totalBr = newClients.filter(c => c.currency === 'BRL').reduce((sum, c) => sum + c.mrr, 0);
@@ -150,11 +258,13 @@ export function useAgencyData() {
     updateMetrics({ ...metrics, mrrBr: totalBr, mrrCan: totalCan });
   };
 
-  const removeClient = (id: string) => {
+  const removeClient = async (id: string) => {
     if (!user) return;
+    
+    await supabase.from('agency_clients').delete().eq('id', id);
+
     const newClients = clients.filter(c => c.id !== id);
     setClients(newClients);
-    localStorage.setItem(`agency_clients_${user.name}`, JSON.stringify(newClients));
     
     // Auto-update MRR
     const totalBr = newClients.filter(c => c.currency === 'BRL').reduce((sum, c) => sum + c.mrr, 0);
@@ -162,7 +272,6 @@ export function useAgencyData() {
     updateMetrics({ ...metrics, mrrBr: totalBr, mrrCan: totalCan });
   };
 
-  // Get weekly sums
   const getWeeklySums = (weekDates: Date[]) => {
     const sums = {
       brAbordagens: 0,
@@ -174,7 +283,6 @@ export function useAgencyData() {
     };
 
     weekDates.forEach(dateObj => {
-      // Adjust date to local timezone string YYYY-MM-DD
       const localDate = new Date(dateObj.getTime() - (dateObj.getTimezoneOffset() * 60000));
       const dateStr = localDate.toISOString().split('T')[0];
       
@@ -196,6 +304,7 @@ export function useAgencyData() {
     logs,
     metrics,
     clients,
+    loading,
     updateDailyLog,
     updateMetrics,
     addClient,

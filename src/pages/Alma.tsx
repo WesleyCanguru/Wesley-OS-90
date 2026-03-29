@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   Circle,
   Quote,
-  Loader2
+  Loader2,
+  XIcon
 } from "lucide-react";
 import { 
   AreaChart, 
@@ -22,14 +23,35 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/hooks/useUser";
+import { useUserGoals } from "@/hooks/useUserGoals";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export function Alma() {
   const user = useUser();
+  const { goals: userGoals, updateGoals, loading: goalsLoading } = useUserGoals();
   const [loading, setLoading] = useState(true);
   const [energyMoodData, setEnergyMoodData] = useState<any[]>([]);
   const [habitsTracker, setHabitsTracker] = useState<any[]>([]);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsForm, setSettingsForm] = useState({
+    targetEnergy: "4.0"
+  });
+
+  useEffect(() => {
+    if (userGoals) {
+      setSettingsForm({
+        targetEnergy: userGoals.targetEnergy.toString()
+      });
+    }
+  }, [userGoals]);
+
+  const handleSaveSettings = () => {
+    updateGoals({
+      targetEnergy: parseFloat(settingsForm.targetEnergy) || 4.0
+    });
+    setIsSettingsModalOpen(false);
+  };
 
   useEffect(() => {
     if (user) {
@@ -91,7 +113,12 @@ export function Alma() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard label="Score Disciplina" value={user?.name === 'Wesley' ? "92" : "0"} subtext={user?.name === 'Wesley' ? "Excelente" : ""} icon={CheckCircle2} color="text-emerald-600" />
         <MetricCard label="Score Constância" value={user?.name === 'Wesley' ? "88" : "0"} subtext={user?.name === 'Wesley' ? "+5% vs semana ant." : ""} icon={CalendarDays} color="text-primary" />
-        <MetricCard label="Média Energia" value={user?.name === 'Wesley' ? "3.8" : "0"} subtext="Meta: > 4.0" icon={Zap} color="text-yellow-500" />
+        <div className="relative group cursor-pointer" onClick={() => setIsSettingsModalOpen(true)}>
+          <MetricCard label="Média Energia" value={user?.name === 'Wesley' ? "3.8" : "0"} subtext={`Meta: > ${userGoals?.targetEnergy || 4.0}`} icon={Zap} color="text-yellow-500" />
+          <div className="absolute inset-0 bg-black/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <span className="text-xs font-bold text-secondary bg-white/90 px-2 py-1 rounded shadow-sm">Editar Meta</span>
+          </div>
+        </div>
         <MetricCard label="Média Humor" value={user?.name === 'Wesley' ? "4.1" : "0"} subtext="Estável" icon={Smile} color="text-blue-500" />
       </div>
 
@@ -241,6 +268,48 @@ export function Alma() {
           </div>
         </div>
       </div>
+
+      {/* Settings Modal */}
+      {isSettingsModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-surface-border">
+            <div className="p-6 border-b border-surface-border flex justify-between items-center bg-background/50">
+              <h3 className="font-serif text-xl font-semibold text-secondary">Configurar Metas (Alma)</h3>
+              <button onClick={() => setIsSettingsModalOpen(false)} className="p-2 hover:bg-surface rounded-full transition-colors">
+                <XIcon className="w-5 h-5 text-text-muted" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1">Meta de Energia (0-5)</label>
+                <input 
+                  type="number" 
+                  step="0.1"
+                  min="0"
+                  max="5"
+                  value={settingsForm.targetEnergy}
+                  onChange={(e) => setSettingsForm({...settingsForm, targetEnergy: e.target.value})}
+                  className="w-full p-3 bg-background border border-surface-border rounded-xl text-secondary focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-surface-border bg-background/50 flex justify-end gap-3">
+              <button 
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="px-6 py-2 rounded-xl font-medium text-text-muted hover:bg-surface transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleSaveSettings}
+                className="px-6 py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors shadow-md"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

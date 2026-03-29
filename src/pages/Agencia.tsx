@@ -22,7 +22,7 @@ import { useAgencyData, AgencyClient } from "@/hooks/useAgencyData";
 
 export function Agencia() {
   const user = useUser();
-  const { metrics, updateMetrics, getWeeklySums, clients, addClient, updateClient, removeClient } = useAgencyData();
+  const { metrics, updateMetrics, getWeeklySums, clients, addClient, updateClient, removeClient, loading: agencyLoading } = useAgencyData();
   
   const [activeTab, setActiveTab] = useState<'macro' | 'mrr'>('macro');
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
@@ -109,18 +109,7 @@ export function Agencia() {
     });
   };
 
-  if (user?.name !== 'Wesley') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4 animate-in fade-in duration-500">
-        <Briefcase className="w-16 h-16 text-surface-border" />
-        <h2 className="text-2xl font-serif font-semibold text-secondary">Área da Agência</h2>
-        <p className="text-text-muted max-w-md">
-          As metas e o painel de gestão para o seu perfil ainda não foram configurados. 
-          Em breve, suas informações estarão disponíveis aqui.
-        </p>
-      </div>
-    );
-  }
+  const isWesley = user?.name === 'Wesley';
 
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-12">
@@ -129,7 +118,7 @@ export function Agencia() {
         <div>
           <div className="text-sm font-bold text-text-muted uppercase tracking-widest mb-2">Agency OS</div>
           <h1 className="text-4xl md:text-5xl font-serif font-semibold tracking-tight text-primary">Gestão da Agência</h1>
-          <p className="text-text-muted mt-2">Acompanhamento do ciclo de 12 semanas (30/03 a 21/06)</p>
+          <p className="text-text-muted mt-2">Acompanhamento de metas e resultados</p>
         </div>
         <div className="flex gap-3">
           <button 
@@ -167,7 +156,7 @@ export function Agencia() {
       {activeTab === 'macro' ? (
         <div className="space-y-10 animate-in fade-in duration-500">
           {/* Placares Principais */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className={cn("grid grid-cols-1 gap-6", isWesley ? "md:grid-cols-3" : "md:grid-cols-2")}>
         {/* Placar 1: MRR Portátil */}
         <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
@@ -183,22 +172,24 @@ export function Agencia() {
           <div className="space-y-5 relative z-10">
             <div>
               <div className="flex justify-between text-sm mb-1.5">
-                <span className="text-text-muted font-medium">Brasil (Meta: R$ 30k)</span>
+                <span className="text-text-muted font-medium">{isWesley ? 'Brasil' : 'Principal'} (Meta: R$ {(metrics.targetMrrBr / 1000).toFixed(0)}k)</span>
                 <span className="font-bold text-primary">R$ {metrics.mrrBr.toLocaleString('pt-BR')}</span>
               </div>
               <div className="h-2.5 w-full bg-background rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (metrics.mrrBr / 30000) * 100)}%` }} />
+                <div className="h-full bg-primary rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (metrics.mrrBr / (metrics.targetMrrBr || 1)) * 100)}%` }} />
               </div>
             </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1.5">
-                <span className="text-text-muted font-medium">Canadá (Meta: CAD 3k)</span>
-                <span className="font-bold text-emerald-600">CAD {metrics.mrrCan.toLocaleString('en-CA')}</span>
+            {isWesley && (
+              <div>
+                <div className="flex justify-between text-sm mb-1.5">
+                  <span className="text-text-muted font-medium">Canadá (Meta: CAD {(metrics.targetMrrCan / 1000).toFixed(0)}k)</span>
+                  <span className="font-bold text-emerald-600">CAD {metrics.mrrCan.toLocaleString('en-CA')}</span>
+                </div>
+                <div className="h-2.5 w-full bg-background rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (metrics.mrrCan / (metrics.targetMrrCan || 1)) * 100)}%` }} />
+                </div>
               </div>
-              <div className="h-2.5 w-full bg-background rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (metrics.mrrCan / 3000) * 100)}%` }} />
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -218,51 +209,53 @@ export function Agencia() {
             <div>
               <div className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Faturado no Mês</div>
               <div className="text-3xl font-serif font-bold text-blue-600">R$ {metrics.caixaMesBr.toLocaleString('pt-BR')}</div>
-              <div className="text-xs text-text-muted mt-1">Meta: R$ 10.000 / mês</div>
+              <div className="text-xs text-text-muted mt-1">Meta: R$ {metrics.targetCaixaMes.toLocaleString('pt-BR')} / mês</div>
             </div>
             <div className="h-2.5 w-full bg-background rounded-full overflow-hidden">
-              <div className="h-full bg-blue-500 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (metrics.caixaMesBr / 10000) * 100)}%` }} />
+              <div className="h-full bg-blue-500 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (metrics.caixaMesBr / (metrics.targetCaixaMes || 1)) * 100)}%` }} />
             </div>
           </div>
         </div>
 
         {/* Placar 3: Runway */}
-        <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
-          <div className="flex items-center gap-3 mb-6 relative z-10">
-            <div className="p-2 bg-orange-500/10 rounded-xl">
-              <ShieldCheck className="w-5 h-5 text-orange-500" />
+        {isWesley && (
+          <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
+            <div className="flex items-center gap-3 mb-6 relative z-10">
+              <div className="p-2 bg-orange-500/10 rounded-xl">
+                <ShieldCheck className="w-5 h-5 text-orange-500" />
+              </div>
+              <div>
+                <h3 className="font-serif text-xl font-semibold text-secondary leading-tight">Runway</h3>
+                <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Segurança</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-serif text-xl font-semibold text-secondary leading-tight">Runway</h3>
-              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Segurança</p>
+            <div className="space-y-4 relative z-10">
+              <div>
+                <div className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Meses de Folga</div>
+                <div className="text-3xl font-serif font-bold text-orange-600">{(metrics.caixaTotalCad / 7000).toFixed(1)} <span className="text-lg text-orange-600/60">meses</span></div>
+                <div className="text-xs text-text-muted mt-1">Base: CAD 7k/mês | Caixa: CAD {metrics.caixaTotalCad.toLocaleString('en-CA')}</div>
+              </div>
+              <div className="h-2.5 w-full bg-background rounded-full overflow-hidden">
+                <div className="h-full bg-orange-500 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (metrics.caixaTotalCad / (7000 * 6)) * 100)}%` }} />
+              </div>
+              <div className="text-[10px] font-bold text-text-muted text-right uppercase tracking-widest">Meta ideal: 6 meses</div>
             </div>
           </div>
-          <div className="space-y-4 relative z-10">
-            <div>
-              <div className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Meses de Folga</div>
-              <div className="text-3xl font-serif font-bold text-orange-600">{(metrics.caixaTotalCad / 7000).toFixed(1)} <span className="text-lg text-orange-600/60">meses</span></div>
-              <div className="text-xs text-text-muted mt-1">Base: CAD 7k/mês | Caixa: CAD {metrics.caixaTotalCad.toLocaleString('en-CA')}</div>
-            </div>
-            <div className="h-2.5 w-full bg-background rounded-full overflow-hidden">
-              <div className="h-full bg-orange-500 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (metrics.caixaTotalCad / (7000 * 6)) * 100)}%` }} />
-            </div>
-            <div className="text-[10px] font-bold text-text-muted text-right uppercase tracking-widest">Meta ideal: 6 meses</div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Metas de Atividade */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className={cn("grid grid-cols-1 gap-8", isWesley ? "lg:grid-cols-2" : "")}>
         
-        {/* Atividades BR */}
+        {/* Atividades BR / Principal */}
         <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="font-serif text-2xl font-semibold text-secondary">Atividades BR</h2>
+              <h2 className="font-serif text-2xl font-semibold text-secondary">{isWesley ? 'Atividades BR' : 'Atividades Principais'}</h2>
               <p className="text-sm text-text-muted mt-1">Acompanhamento Semanal</p>
             </div>
-            <span className="px-4 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-bold tracking-widest uppercase">Canguru</span>
+            {isWesley && <span className="px-4 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-bold tracking-widest uppercase">Canguru</span>}
           </div>
           
           <div className="space-y-6">
@@ -275,7 +268,7 @@ export function Agencia() {
               <div className="flex justify-between items-end">
                 <div>
                   <div className="text-sm font-bold text-secondary uppercase tracking-widest mb-1">Fechamentos</div>
-                  <div className="text-xs text-text-muted">Meta: 1/sem (Adiciona ~R$ 2.500 MRR)</div>
+                  <div className="text-xs text-text-muted">Meta: 1/sem {isWesley && '(Adiciona ~R$ 2.500 MRR)'}</div>
                 </div>
                 <div className="text-3xl font-serif font-bold text-emerald-600">{metrics.brFechamentos}<span className="text-xl text-emerald-600/50">/1</span></div>
               </div>
@@ -284,56 +277,60 @@ export function Agencia() {
         </div>
 
         {/* Atividades CAN */}
-        <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="font-serif text-2xl font-semibold text-secondary">Atividades CAN</h2>
-              <p className="text-sm text-text-muted mt-1">Acompanhamento Semanal</p>
+        {isWesley && (
+          <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="font-serif text-2xl font-semibold text-secondary">Atividades CAN</h2>
+                <p className="text-sm text-text-muted mt-1">Acompanhamento Semanal</p>
+              </div>
+              <span className="px-4 py-1.5 bg-red-500/10 text-red-600 rounded-full text-xs font-bold tracking-widest uppercase">Kanoa</span>
             </div>
-            <span className="px-4 py-1.5 bg-red-500/10 text-red-600 rounded-full text-xs font-bold tracking-widest uppercase">Kanoa</span>
-          </div>
-          
-          <div className="space-y-6">
-            <ActivityProgress label="Abordagens Novas" current={weeklySums.canAbordagens} target={80} dailyTarget={16} color="bg-red-500" />
-            <ActivityProgress label="Follow-ups" current={weeklySums.canFollowups} target={40} dailyTarget={8} color="bg-red-500" />
             
-            <div className="pt-6 border-t border-surface-border mt-8">
-              <div className="flex justify-between items-end">
-                <div>
-                  <div className="text-sm font-bold text-secondary uppercase tracking-widest mb-1">Pacotes Fechados</div>
-                  <div className="text-xs text-text-muted">Meta: 4/sem (CAD 200 por pacote)</div>
+            <div className="space-y-6">
+              <ActivityProgress label="Abordagens Novas" current={weeklySums.canAbordagens} target={80} dailyTarget={16} color="bg-red-500" />
+              <ActivityProgress label="Follow-ups" current={weeklySums.canFollowups} target={40} dailyTarget={8} color="bg-red-500" />
+              
+              <div className="pt-6 border-t border-surface-border mt-8">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <div className="text-sm font-bold text-secondary uppercase tracking-widest mb-1">Pacotes Fechados</div>
+                    <div className="text-xs text-text-muted">Meta: 4/sem (CAD 200 por pacote)</div>
+                  </div>
+                  <div className="text-3xl font-serif font-bold text-emerald-600">{metrics.canFechamentos}<span className="text-xl text-emerald-600/50">/4</span></div>
                 </div>
-                <div className="text-3xl font-serif font-bold text-emerald-600">{metrics.canFechamentos}<span className="text-xl text-emerald-600/50">/4</span></div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Regras do Jogo */}
+      {isWesley && (
+        <div className="bg-primary text-white rounded-3xl p-8 shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-6">
+              <Target className="w-6 h-6 text-white/40" />
+              <h2 className="font-serif text-2xl font-semibold tracking-tight">Regras do Jogo</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white/10 rounded-2xl p-5 border border-white/10">
+                <div className="text-xl font-serif font-bold mb-2">Foco S1 a S9</div>
+                <p className="text-sm text-white/80 leading-relaxed">Aquisição agressiva. Bater a meta de 9 clientes BR até 31/05.</p>
+              </div>
+              <div className="bg-white/10 rounded-2xl p-5 border border-white/10">
+                <div className="text-xl font-serif font-bold mb-2">Foco S10 a S12</div>
+                <p className="text-sm text-white/80 leading-relaxed">Retenção, estabilização e entrega impecável. Buffer de segurança.</p>
+              </div>
+              <div className="bg-white/10 rounded-2xl p-5 border border-white/10">
+                <div className="text-xl font-serif font-bold mb-2">Serviço Avulso</div>
+                <p className="text-sm text-white/80 leading-relaxed">Não conta para MRR. É combustível 100% para o Caixa Extra e Runway.</p>
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Regras do Jogo */}
-      <div className="bg-primary text-white rounded-3xl p-8 shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-6">
-            <Target className="w-6 h-6 text-white/40" />
-            <h2 className="font-serif text-2xl font-semibold tracking-tight">Regras do Jogo</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white/10 rounded-2xl p-5 border border-white/10">
-              <div className="text-xl font-serif font-bold mb-2">Foco S1 a S9</div>
-              <p className="text-sm text-white/80 leading-relaxed">Aquisição agressiva. Bater a meta de 9 clientes BR até 31/05.</p>
-            </div>
-            <div className="bg-white/10 rounded-2xl p-5 border border-white/10">
-              <div className="text-xl font-serif font-bold mb-2">Foco S10 a S12</div>
-              <p className="text-sm text-white/80 leading-relaxed">Retenção, estabilização e entrega impecável. Buffer de segurança.</p>
-            </div>
-            <div className="bg-white/10 rounded-2xl p-5 border border-white/10">
-              <div className="text-xl font-serif font-bold mb-2">Serviço Avulso</div>
-              <p className="text-sm text-white/80 leading-relaxed">Não conta para MRR. É combustível 100% para o Caixa Extra e Runway.</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
         </div>
       ) : (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -407,15 +404,17 @@ export function Agencia() {
                 </tbody>
                 <tfoot className="bg-surface-hover/30 border-t-2 border-surface-border">
                   <tr>
-                    <td colSpan={2} className="p-4 font-bold text-secondary text-right">Total MRR Brasil:</td>
+                    <td colSpan={2} className="p-4 font-bold text-secondary text-right">{isWesley ? 'Total MRR Brasil:' : 'Total MRR:'}</td>
                     <td className="p-4 font-mono font-bold text-primary text-lg">R$ {metrics.mrrBr.toLocaleString('pt-BR')}</td>
                     <td></td>
                   </tr>
-                  <tr>
-                    <td colSpan={2} className="p-4 font-bold text-secondary text-right">Total MRR Canadá:</td>
-                    <td className="p-4 font-mono font-bold text-red-600 text-lg">CAD {metrics.mrrCan.toLocaleString('pt-BR')}</td>
-                    <td></td>
-                  </tr>
+                  {isWesley && (
+                    <tr>
+                      <td colSpan={2} className="p-4 font-bold text-secondary text-right">Total MRR Canadá:</td>
+                      <td className="p-4 font-mono font-bold text-red-600 text-lg">CAD {metrics.mrrCan.toLocaleString('pt-BR')}</td>
+                      <td></td>
+                    </tr>
+                  )}
                 </tfoot>
               </table>
             </div>
@@ -423,7 +422,7 @@ export function Agencia() {
             <div className="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
               <div className="text-sm text-blue-800">
-                <span className="font-bold">Nota:</span> Esta é uma lista simplificada para acompanhamento rápido do seu MRR. A gestão financeira completa e emissão de notas continua sendo feita no sistema principal da Canguru.
+                <span className="font-bold">Nota:</span> Esta é uma lista simplificada para acompanhamento rápido do seu MRR. A gestão financeira completa e emissão de notas continua sendo feita no seu sistema principal.
               </div>
             </div>
           </div>
@@ -447,7 +446,7 @@ export function Agencia() {
                 <h3 className="text-sm font-bold text-primary uppercase tracking-widest mb-4">Placares Principais</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">MRR Brasil (R$)</label>
+                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">{isWesley ? 'MRR Brasil (R$)' : 'MRR Principal (R$)'}</label>
                     <input 
                       type="number" 
                       value={editMetrics.mrrBr}
@@ -456,14 +455,38 @@ export function Agencia() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">MRR Canadá (CAD)</label>
+                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">{isWesley ? 'Meta MRR Brasil (R$)' : 'Meta MRR Principal (R$)'}</label>
                     <input 
                       type="number" 
-                      value={editMetrics.mrrCan}
-                      onChange={e => setEditMetrics({...editMetrics, mrrCan: Number(e.target.value)})}
+                      value={editMetrics.targetMrrBr}
+                      onChange={e => setEditMetrics({...editMetrics, targetMrrBr: Number(e.target.value)})}
                       className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
                     />
                   </div>
+                  
+                  {isWesley && (
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-text-muted uppercase tracking-widest">MRR Canadá (CAD)</label>
+                        <input 
+                          type="number" 
+                          value={editMetrics.mrrCan}
+                          onChange={e => setEditMetrics({...editMetrics, mrrCan: Number(e.target.value)})}
+                          className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Meta MRR Canadá (CAD)</label>
+                        <input 
+                          type="number" 
+                          value={editMetrics.targetMrrCan}
+                          onChange={e => setEditMetrics({...editMetrics, targetMrrCan: Number(e.target.value)})}
+                          className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                        />
+                      </div>
+                    </>
+                  )}
+
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Caixa Extra Mês (R$)</label>
                     <input 
@@ -474,7 +497,17 @@ export function Agencia() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Caixa Total (CAD)</label>
+                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Meta Caixa Extra Mês (R$)</label>
+                    <input 
+                      type="number" 
+                      value={editMetrics.targetCaixaMes}
+                      onChange={e => setEditMetrics({...editMetrics, targetCaixaMes: Number(e.target.value)})}
+                      className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Caixa Total ({isWesley ? 'CAD' : 'R$'})</label>
                     <input 
                       type="number" 
                       value={editMetrics.caixaTotalCad}
@@ -487,7 +520,7 @@ export function Agencia() {
 
               {/* Atividades BR */}
               <div>
-                <h3 className="text-sm font-bold text-primary uppercase tracking-widest mb-4">Fechamentos BR (Semana)</h3>
+                <h3 className="text-sm font-bold text-primary uppercase tracking-widest mb-4">{isWesley ? 'Fechamentos BR (Semana)' : 'Fechamentos (Semana)'}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Novos Clientes</label>
@@ -502,20 +535,22 @@ export function Agencia() {
               </div>
 
               {/* Atividades CAN */}
-              <div>
-                <h3 className="text-sm font-bold text-red-600 uppercase tracking-widest mb-4">Fechamentos CAN (Semana)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Pacotes Fechados</label>
-                    <input 
-                      type="number" 
-                      value={editMetrics.canFechamentos}
-                      onChange={e => setEditMetrics({...editMetrics, canFechamentos: Number(e.target.value)})}
-                      className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-mono text-emerald-700"
-                    />
+              {isWesley && (
+                <div>
+                  <h3 className="text-sm font-bold text-red-600 uppercase tracking-widest mb-4">Fechamentos CAN (Semana)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Pacotes Fechados</label>
+                      <input 
+                        type="number" 
+                        value={editMetrics.canFechamentos}
+                        onChange={e => setEditMetrics({...editMetrics, canFechamentos: Number(e.target.value)})}
+                        className="w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 font-mono text-emerald-700"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="pt-4 sticky bottom-0 bg-surface pb-2">
                 <button type="submit" className="w-full bg-primary text-white py-4 rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">

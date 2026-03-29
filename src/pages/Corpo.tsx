@@ -29,13 +29,22 @@ import { cn } from "@/lib/utils";
 import { Modal } from "@/components/Modal";
 import { supabase } from "@/lib/supabase";
 import { useUser } from "@/hooks/useUser";
+import { useUserGoals } from "@/hooks/useUserGoals";
 
 import { calculateMacros } from "@/services/geminiService";
 import { getCycleInfo } from "@/lib/cycle";
-import { NUTRITION_TARGETS, DEFAULT_NUTRITION } from "@/config/nutritionTargets";
 
 export function Corpo() {
   const user = useUser();
+  const { goals: userGoals, updateGoals, loading: goalsLoading } = useUserGoals();
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsForm, setSettingsForm] = useState({
+    targetWeight: "",
+    targetBf: "",
+    targetCalories: "",
+    targetProtein: ""
+  });
+
   const [loading, setLoading] = useState(true);
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [isMeasurementsModalOpen, setIsMeasurementsModalOpen] = useState(false);
@@ -85,6 +94,17 @@ export function Corpo() {
 
   const [isPhotoAngleModalOpen, setIsPhotoAngleModalOpen] = useState(false);
   const [currentPhotoAngle, setCurrentPhotoAngle] = useState<string>("frente");
+
+  useEffect(() => {
+    if (userGoals) {
+      setSettingsForm({
+        targetWeight: userGoals.targetWeight.toString(),
+        targetBf: userGoals.targetBf.toString(),
+        targetCalories: userGoals.targetCalories.toString(),
+        targetProtein: userGoals.targetProtein.toString()
+      });
+    }
+  }, [userGoals]);
 
   useEffect(() => {
     if (user) {
@@ -169,6 +189,16 @@ export function Corpo() {
     });
     
     return Math.min(100, Math.round((completedDays / habit.frequency_per_week) * 100));
+  };
+
+  const handleSaveSettings = () => {
+    updateGoals({
+      targetWeight: parseFloat(settingsForm.targetWeight) || 78,
+      targetBf: parseFloat(settingsForm.targetBf) || 12,
+      targetCalories: parseFloat(settingsForm.targetCalories) || 2200,
+      targetProtein: parseFloat(settingsForm.targetProtein) || 180
+    });
+    setIsSettingsModalOpen(false);
   };
 
   const fetchBodyData = async () => {
@@ -487,7 +517,7 @@ export function Corpo() {
     setViewingGallery(true);
   };
 
-  const nutritionTargets = user?.name ? (NUTRITION_TARGETS[user.name] ?? DEFAULT_NUTRITION) : DEFAULT_NUTRITION;
+  const nutritionTargets = userGoals || { targetCalories: 2200, targetProtein: 180 };
 
   useEffect(() => {
     const generateFeedback = async () => {
@@ -1105,7 +1135,7 @@ export function Corpo() {
                     strokeWidth="10"
                     className="text-primary"
                     strokeDasharray={`${2 * Math.PI * 74}`}
-                    strokeDashoffset={`${2 * Math.PI * 74 * (1 - Math.min(1, totalCalories / nutritionTargets.calories))}`}
+                    strokeDashoffset={`${2 * Math.PI * 74 * (1 - Math.min(1, totalCalories / nutritionTargets.targetCalories))}`}
                     strokeLinecap="round"
                   />
                 </svg>
@@ -1114,13 +1144,13 @@ export function Corpo() {
                   <span className="text-xs font-bold text-text-muted uppercase tracking-widest">kcal</span>
                 </div>
               </div>
-              <p className="text-sm text-text-muted font-medium">Consumido de {nutritionTargets.calories} kcal</p>
+              <p className="text-sm text-text-muted font-medium">Consumido de {nutritionTargets.targetCalories} kcal</p>
             </div>
 
             <div className="space-y-6">
-              <MacroBar label="Proteínas" current={totalProteins} target={nutritionTargets.protein} unit="g" color="bg-primary" onClick={() => handleLogFood("Proteínas")} />
-              <MacroBar label="Carboidratos" current={totalCarbs} target={nutritionTargets.carbs} unit="g" color="bg-blue-400" onClick={() => handleLogFood("Carboidratos")} />
-              <MacroBar label="Gorduras" current={totalFats} target={nutritionTargets.fats} unit="g" color="bg-yellow-500" onClick={() => handleLogFood("Gorduras")} />
+              <MacroBar label="Proteínas" current={totalProteins} target={nutritionTargets.targetProtein} unit="g" color="bg-primary" onClick={() => handleLogFood("Proteínas")} />
+              <MacroBar label="Carboidratos" current={totalCarbs} target={nutritionTargets.targetCalories * 0.4 / 4} unit="g" color="bg-blue-400" onClick={() => handleLogFood("Carboidratos")} />
+              <MacroBar label="Gorduras" current={totalFats} target={nutritionTargets.targetCalories * 0.3 / 9} unit="g" color="bg-yellow-500" onClick={() => handleLogFood("Gorduras")} />
             </div>
           </div>
           

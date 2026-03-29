@@ -26,11 +26,12 @@ import { supabase } from "@/lib/supabase";
 import { getCycleInfo } from "@/lib/cycle";
 import { cn } from "@/lib/utils";
 import { useAgencyData } from "@/hooks/useAgencyData";
-import { NUTRITION_TARGETS, DEFAULT_NUTRITION } from "@/config/nutritionTargets";
+import { useUserGoals } from "@/hooks/useUserGoals";
 
 export function Dashboard() {
   const navigate = useNavigate();
   const user = useUser();
+  const { goals: userGoals, loading: goalsLoading } = useUserGoals();
   const { startDate, endDate, currentDay, totalDays, cycleProgress, currentWeek } = getCycleInfo();
   const [loading, setLoading] = useState(true);
   
@@ -219,7 +220,7 @@ export function Dashboard() {
     }
   };
 
-  const nutritionTargets = user?.name ? (NUTRITION_TARGETS[user.name] ?? DEFAULT_NUTRITION) : DEFAULT_NUTRITION;
+  const nutritionTargets = userGoals || { targetCalories: 2200, targetProtein: 180 };
 
   if (loading) {
     return (
@@ -508,7 +509,7 @@ export function Dashboard() {
                     strokeWidth="6"
                     className="text-primary"
                     strokeDasharray={`${2 * Math.PI * 42}`}
-                    strokeDashoffset={`${2 * Math.PI * 42 * (1 - Math.min(1, todayStats.calories / nutritionTargets.calories))}`}
+                    strokeDashoffset={`${2 * Math.PI * 42 * (1 - Math.min(1, todayStats.calories / nutritionTargets.targetCalories))}`}
                     strokeLinecap="round"
                   />
                 </svg>
@@ -517,13 +518,13 @@ export function Dashboard() {
                   <span className="text-[8px] font-bold text-text-muted uppercase tracking-widest">kcal</span>
                 </div>
               </div>
-              <p className="text-[10px] text-text-muted font-medium text-center">Meta: {nutritionTargets.calories}</p>
+              <p className="text-[10px] text-text-muted font-medium text-center">Meta: {nutritionTargets.targetCalories}</p>
             </div>
 
             <div className="md:col-span-2 space-y-4">
-              <MacroBar label="Proteína" current={todayStats.protein} target={nutritionTargets.protein} unit="g" color="bg-emerald-500" />
-              <MacroBar label="Carbos" current={todayStats.carbs} target={nutritionTargets.carbs} unit="g" color="bg-blue-500" />
-              <MacroBar label="Gorduras" current={todayStats.fats} target={nutritionTargets.fats} unit="g" color="bg-orange-500" />
+              <MacroBar label="Proteína" current={todayStats.protein} target={nutritionTargets.targetProtein} unit="g" color="bg-emerald-500" />
+              <MacroBar label="Carbos" current={todayStats.carbs} target={nutritionTargets.targetCalories * 0.4 / 4} unit="g" color="bg-blue-500" />
+              <MacroBar label="Gorduras" current={todayStats.fats} target={nutritionTargets.targetCalories * 0.3 / 9} unit="g" color="bg-orange-500" />
             </div>
           </div>
         </div>
