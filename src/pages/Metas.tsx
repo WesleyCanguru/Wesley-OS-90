@@ -98,8 +98,8 @@ export function Metas() {
     const dates = [];
     
     if (currentWeek === 1) {
-      // Semana 1: Quarta (01/04) a Domingo (05/04)
-      for (let i = 0; i < 5; i++) {
+      // Semana 1: Quinta (02/04) a Domingo (05/04)
+      for (let i = 0; i < 4; i++) {
         const date = new Date(startDate);
         date.setDate(startDate.getDate() + i);
         dates.push(date);
@@ -107,8 +107,8 @@ export function Metas() {
     } else {
       // Demais semanas: Segunda a Domingo
       // Calcula a segunda-feira da semana atual
-      // Semana 2 começa no dia 6 (startDate + 5)
-      const weekStartOffset = 5 + (currentWeek - 2) * 7;
+      // Semana 2 começa no dia 5 (startDate + 4)
+      const weekStartOffset = 4 + (currentWeek - 2) * 7;
       const monday = new Date(startDate);
       monday.setDate(startDate.getDate() + weekStartOffset);
 
@@ -380,12 +380,12 @@ export function Metas() {
     // Regra especial para a Semana 1
     if (currentWeek === 1) {
       if (habit.frequency_per_week >= 6) {
-        // Para hábitos de 6 ou 7 dias, a meta na semana 1 (5 dias) é 5.
-        targetFrequency = 5;
+        // Para hábitos de 6 ou 7 dias, a meta na semana 1 (4 dias) é 4.
+        targetFrequency = 4;
       } else {
-        // Para hábitos de 5 dias ou menos, a meta continua sendo a mesma.
-        // Se a frequência for 5, ele precisa fazer os 5 dias.
-        targetFrequency = habit.frequency_per_week;
+        // Para hábitos de 5 dias ou menos, a meta continua sendo a mesma, 
+        // mas limitada ao número de dias da semana (4).
+        targetFrequency = Math.min(4, habit.frequency_per_week);
       }
     }
 
@@ -406,7 +406,8 @@ export function Metas() {
         if (habit.frequency_per_week >= 6) {
           expectedDays = currentDay;
         } else {
-          expectedDays = Math.max(1, Math.round((habit.frequency_per_week / 5) * currentDay));
+          const week1Target = Math.min(4, habit.frequency_per_week);
+          expectedDays = Math.max(1, Math.round((week1Target / 4) * currentDay));
         }
       } else {
         expectedDays = Math.max(1, Math.round((habit.frequency_per_week / 7) * currentDay));

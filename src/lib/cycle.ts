@@ -1,29 +1,29 @@
-export const CYCLE_START_DATE = new Date(2026, 3, 1); // 01 de Abril de 2026
-export const CYCLE_TOTAL_DAYS = 84; // 12 semanas * 7 dias
+export const CYCLE_START_DATE = new Date(2026, 3, 2); // 02 de Abril de 2026 (Quinta-feira)
+export const CYCLE_END_DATE = new Date(2026, 5, 28); // 28 de Junho de 2026 (Domingo)
 
 export function getCycleInfo() {
-  const endDate = new Date(CYCLE_START_DATE.getTime() + (CYCLE_TOTAL_DAYS - 1) * 24 * 60 * 60 * 1000);
+  const totalDays = Math.floor((CYCLE_END_DATE.getTime() - CYCLE_START_DATE.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   
   const today = new Date();
   const diffTime = today.getTime() - CYCLE_START_DATE.getTime();
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
   
-  const currentDay = diffDays < 1 ? 0 : Math.min(diffDays, CYCLE_TOTAL_DAYS);
+  const currentDay = diffDays < 1 ? 0 : Math.min(diffDays, totalDays);
   
-  // Primeira semana curta: Quarta (1) a Domingo (5)
+  // Primeira semana curta: Quinta (1) a Domingo (4)
   let currentWeek = 1;
-  if (currentDay > 5) {
-    currentWeek = Math.ceil((currentDay - 5) / 7) + 1;
+  if (currentDay > 4) {
+    currentWeek = Math.ceil((currentDay - 4) / 7) + 1;
   } else if (currentDay === 0) {
     currentWeek = 1;
   }
   
-  const cycleProgress = Math.round((currentDay / CYCLE_TOTAL_DAYS) * 100);
+  const cycleProgress = Math.round((currentDay / totalDays) * 100);
 
   return {
     startDate: CYCLE_START_DATE,
-    endDate,
-    totalDays: CYCLE_TOTAL_DAYS,
+    endDate: CYCLE_END_DATE,
+    totalDays: totalDays,
     currentDay,
     currentWeek,
     cycleProgress
