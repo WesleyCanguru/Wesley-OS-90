@@ -1,4 +1,4 @@
-export const CYCLE_START_DATE = new Date(2026, 2, 30); // 30 de Março de 2026
+export const CYCLE_START_DATE = new Date(2026, 3, 1); // 01 de Abril de 2026
 export const CYCLE_TOTAL_DAYS = 84; // 12 semanas * 7 dias
 
 export function getCycleInfo() {
@@ -9,7 +9,15 @@ export function getCycleInfo() {
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
   
   const currentDay = diffDays < 1 ? 0 : Math.min(diffDays, CYCLE_TOTAL_DAYS);
-  const currentWeek = currentDay === 0 ? 1 : Math.ceil(currentDay / 7);
+  
+  // Primeira semana curta: Quarta (1) a Domingo (5)
+  let currentWeek = 1;
+  if (currentDay > 5) {
+    currentWeek = Math.ceil((currentDay - 5) / 7) + 1;
+  } else if (currentDay === 0) {
+    currentWeek = 1;
+  }
+  
   const cycleProgress = Math.round((currentDay / CYCLE_TOTAL_DAYS) * 100);
 
   return {

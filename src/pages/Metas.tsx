@@ -55,6 +55,10 @@ export function Metas() {
   const [viewMode, setViewMode] = useState<'macro' | 'tracker'>('macro');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isHabitModalOpen, setIsHabitModalOpen] = useState(false);
+  const [isDeleteGoalModalOpen, setIsDeleteGoalModalOpen] = useState(false);
+  const [isDeleteHabitModalOpen, setIsDeleteHabitModalOpen] = useState(false);
+  const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
+  const [habitToDelete, setHabitToDelete] = useState<string | null>(null);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
   
@@ -89,22 +93,33 @@ export function Metas() {
     }
   }, [user]);
 
-  // Configura as datas da semana atual (Segunda a Domingo)
+  // Configura as datas da semana atual
   useEffect(() => {
     const dates = [];
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 = Dom, 1 = Seg...
-    const diffToMonday = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Ajusta para Segunda
     
-    const monday = new Date(today.setDate(diffToMonday));
+    if (currentWeek === 1) {
+      // Semana 1: Quarta (01/04) a Domingo (05/04)
+      for (let i = 0; i < 5; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        dates.push(date);
+      }
+    } else {
+      // Demais semanas: Segunda a Domingo
+      // Calcula a segunda-feira da semana atual
+      // Semana 2 começa no dia 6 (startDate + 5)
+      const weekStartOffset = 5 + (currentWeek - 2) * 7;
+      const monday = new Date(startDate);
+      monday.setDate(startDate.getDate() + weekStartOffset);
 
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
-      dates.push(date);
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
+        dates.push(date);
+      }
     }
     setWeekDates(dates);
-  }, []);
+  }, [currentWeek, startDate]);
 
   const fetchGoals = async () => {
     if (!user) return;
@@ -240,18 +255,24 @@ export function Metas() {
   };
 
   const handleDeleteGoal = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir esta meta?")) return;
+    setGoalToDelete(id);
+    setIsDeleteGoalModalOpen(true);
+  };
+
+  const confirmDeleteGoal = async () => {
+    if (!goalToDelete) return;
     try {
       const { error } = await supabase
         .from('goals')
         .delete()
-        .eq('id', id);
+        .eq('id', goalToDelete);
 
       if (error) throw error;
       fetchGoals();
+      setIsDeleteGoalModalOpen(false);
+      setGoalToDelete(null);
     } catch (error) {
       console.error("Erro ao deletar meta:", error);
-      alert("Erro ao deletar meta.");
     }
   };
 
@@ -268,15 +289,22 @@ export function Metas() {
   };
 
   const handleDeleteHabit = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este hábito?")) return;
+    setHabitToDelete(id);
+    setIsDeleteHabitModalOpen(true);
+  };
+
+  const confirmDeleteHabit = async () => {
+    if (!habitToDelete) return;
     try {
       const { error } = await supabase
         .from('habits')
         .delete()
-        .eq('id', id);
+        .eq('id', habitToDelete);
 
       if (error) throw error;
       fetchTrackerData();
+      setIsDeleteHabitModalOpen(false);
+      setHabitToDelete(null);
     } catch (error) {
       console.error("Erro ao deletar hábito:", error);
     }
@@ -347,7 +375,21 @@ export function Metas() {
     });
     
     // Calcula a porcentagem baseada na frequência desejada (max 100%)
-    const percentage = Math.min(100, Math.round((completedDays / habit.frequency_per_week) * 100));
+    let targetFrequency = habit.frequency_per_week;
+    
+    // Regra especial para a Semana 1
+    if (currentWeek === 1) {
+      if (habit.frequency_per_week >= 6) {
+        // Para hábitos de 6 ou 7 dias, a meta na semana 1 (5 dias) é 5.
+        targetFrequency = 5;
+      } else {
+        // Para hábitos de 5 dias ou menos, a meta continua sendo a mesma.
+        // Se a frequência for 5, ele precisa fazer os 5 dias.
+        targetFrequency = habit.frequency_per_week;
+      }
+    }
+
+    const percentage = Math.min(100, Math.round((completedDays / targetFrequency) * 100));
     return percentage;
   };
 
@@ -358,7 +400,17 @@ export function Metas() {
     
     habits.forEach(habit => {
       let completedDays = 0;
-      let expectedDays = Math.max(1, Math.round((habit.frequency_per_week / 7) * currentDay));
+      let expectedDays = 0;
+
+      if (currentWeek === 1) {
+        if (habit.frequency_per_week >= 6) {
+          expectedDays = currentDay;
+        } else {
+          expectedDays = Math.max(1, Math.round((habit.frequency_per_week / 5) * currentDay));
+        }
+      } else {
+        expectedDays = Math.max(1, Math.round((habit.frequency_per_week / 7) * currentDay));
+      }
       
       for (let d = 0; d < currentDay; d++) {
         const date = new Date(startDate);
@@ -514,7 +566,7 @@ export function Metas() {
               </div>
               <div className="space-y-4">
                 {goals.corpo.map(goal => (
-                  <GoalCard key={goal.id} goal={goal} color="bg-emerald-500" onEdit={handleEditGoalClick} />
+                  <GoalCard key={goal.id} goal={goal} color="bg-emerald-500" onEdit={handleEditGoalClick} onDelete={handleDeleteGoal} />
                 ))}
                 {goals.corpo.length === 0 && <p className="text-sm text-text-muted italic">Nenhuma meta definida.</p>}
               </div>
@@ -531,7 +583,7 @@ export function Metas() {
               </div>
               <div className="space-y-4">
                 {goals.alma.map(goal => (
-                  <GoalCard key={goal.id} goal={goal} color="bg-blue-500" onEdit={handleEditGoalClick} />
+                  <GoalCard key={goal.id} goal={goal} color="bg-blue-500" onEdit={handleEditGoalClick} onDelete={handleDeleteGoal} />
                 ))}
                 {goals.alma.length === 0 && <p className="text-sm text-text-muted italic">Nenhuma meta definida.</p>}
               </div>
@@ -548,7 +600,7 @@ export function Metas() {
               </div>
               <div className="space-y-4">
                 {goals.trabalho.map(goal => (
-                  <GoalCard key={goal.id} goal={goal} color="bg-orange-500" onEdit={handleEditGoalClick} />
+                  <GoalCard key={goal.id} goal={goal} color="bg-orange-500" onEdit={handleEditGoalClick} onDelete={handleDeleteGoal} />
                 ))}
                 {goals.trabalho.length === 0 && <p className="text-sm text-text-muted italic">Nenhuma meta definida.</p>}
               </div>
@@ -604,12 +656,17 @@ export function Metas() {
                 <tr className="bg-surface-hover/50 border-b border-surface-border">
                   <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest w-1/3">Ação Planejada (Hábito)</th>
                   <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-24">Freq.</th>
-                  {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((day, i) => (
-                    <th key={day} className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-12">
-                      {day}
-                      <div className="text-[10px] font-normal mt-0.5 opacity-70">{weekDates[i]?.getDate()}</div>
-                    </th>
-                  ))}
+                  {weekDates.map((date, i) => {
+                    const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                    const dayName = days[date.getDay()];
+                    return (
+                      <th key={i} className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-12">
+                        {dayName}
+                        <div className="text-[10px] font-normal mt-0.5 opacity-70">{date.getDate()}</div>
+                      </th>
+                    );
+                  })}
+                  <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-12">Score</th>
                   <th className="p-4 font-bold text-xs text-text-muted uppercase tracking-widest text-center w-12">Ações</th>
                 </tr>
               </thead>
@@ -949,11 +1006,61 @@ export function Metas() {
           </div>
         </div>
       </Modal>
+
+      {/* Modal de Confirmação de Exclusão de Meta */}
+      <Modal
+        isOpen={isDeleteGoalModalOpen}
+        onClose={() => setIsDeleteGoalModalOpen(false)}
+        title="Excluir Meta"
+      >
+        <div className="space-y-6">
+          <p className="text-secondary">Tem certeza que deseja excluir esta meta? Esta ação não pode ser desfeita.</p>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setIsDeleteGoalModalOpen(false)}
+              className="flex-1 px-4 py-3 border border-surface-border text-secondary rounded-xl hover:bg-surface-hover transition-colors font-medium"
+            >
+              Cancelar
+            </button>
+            <button 
+              onClick={confirmDeleteGoal}
+              className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium shadow-sm"
+            >
+              Excluir
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de Confirmação de Exclusão de Hábito */}
+      <Modal
+        isOpen={isDeleteHabitModalOpen}
+        onClose={() => setIsDeleteHabitModalOpen(false)}
+        title="Excluir Hábito"
+      >
+        <div className="space-y-6">
+          <p className="text-secondary">Tem certeza que deseja excluir este hábito? Esta ação não pode ser desfeita.</p>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setIsDeleteHabitModalOpen(false)}
+              className="flex-1 px-4 py-3 border border-surface-border text-secondary rounded-xl hover:bg-surface-hover transition-colors font-medium"
+            >
+              Cancelar
+            </button>
+            <button 
+              onClick={confirmDeleteHabit}
+              className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium shadow-sm"
+            >
+              Excluir
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function GoalCard({ goal, color, onEdit }: any) {
+function GoalCard({ goal, color, onEdit, onDelete }: any) {
   let percentage = 0;
   if (goal.inverse) {
     const totalDiff = goal.start - goal.target;
@@ -967,16 +1074,26 @@ function GoalCard({ goal, color, onEdit }: any) {
 
   return (
     <div className="bg-surface border border-surface-border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all group relative">
-      {onEdit && (
-        <button 
-          onClick={() => onEdit(goal)}
-          className="absolute top-4 right-4 p-2 bg-background border border-surface-border rounded-lg text-text-muted hover:text-primary opacity-0 group-hover:opacity-100 transition-all"
-        >
-          <Edit2 className="w-4 h-4" />
-        </button>
-      )}
+      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+        {onEdit && (
+          <button 
+            onClick={() => onEdit(goal)}
+            className="p-2 bg-background border border-surface-border rounded-lg text-text-muted hover:text-primary transition-all"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+        )}
+        {onDelete && (
+          <button 
+            onClick={() => onDelete(goal.id)}
+            className="p-2 bg-background border border-surface-border rounded-lg text-text-muted hover:text-red-500 transition-all"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+      </div>
       <div className="flex justify-between items-start mb-4">
-        <h4 className="font-medium text-secondary leading-snug pr-10">{goal.title}</h4>
+        <h4 className="font-medium text-secondary leading-snug pr-16">{goal.title}</h4>
         {percentage >= 100 ? (
           <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
         ) : (
