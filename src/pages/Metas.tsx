@@ -35,6 +35,7 @@ type Habit = {
   color: string;
   emoji: string;
   area: 'alma' | 'corpo' | 'agencia';
+  goal_id?: string;
 };
 
 type HabitLog = {
@@ -56,6 +57,7 @@ export function Metas() {
   
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'macro' | 'tracker'>('macro');
+  const [activeHabitTab, setActiveHabitTab] = useState<'pessoal' | 'agencia'>('pessoal');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isHabitModalOpen, setIsHabitModalOpen] = useState(false);
   const [isDeleteGoalModalOpen, setIsDeleteGoalModalOpen] = useState(false);
@@ -86,7 +88,8 @@ export function Metas() {
     unit: "",
     color: "blue",
     emoji: "🎯",
-    area: "alma"
+    area: "alma",
+    goal_id: ""
   });
   const [weeklyLogs, setWeeklyLogs] = useState<Record<string, Record<string, HabitLog>>>({}); // habit_id -> date -> log
   const [weekDates, setWeekDates] = useState<Date[]>([]);
@@ -292,7 +295,8 @@ export function Metas() {
       unit: habit.unit,
       color: habit.color || 'blue',
       emoji: habit.emoji || '🎯',
-      area: habit.area || 'alma'
+      area: habit.area || 'alma',
+      goal_id: habit.goal_id || ""
     });
     setIsHabitModalOpen(true);
   };
@@ -333,7 +337,8 @@ export function Metas() {
             unit: newHabit.unit,
             color: newHabit.color,
             emoji: newHabit.emoji,
-            area: newHabit.area
+            area: newHabit.area,
+            goal_id: newHabit.goal_id || null
           })
           .eq('id', editingHabitId);
 
@@ -351,13 +356,14 @@ export function Metas() {
             unit: newHabit.unit,
             color: newHabit.color,
             emoji: newHabit.emoji,
-            area: newHabit.area
+            area: newHabit.area,
+            goal_id: newHabit.goal_id || null
           }]);
 
         if (error) throw error;
       }
       
-      setNewHabit({ name: "", frequency_per_week: 7, type: 'check', target_value: 0, unit: "", color: "blue", emoji: "🎯", area: "alma" });
+      setNewHabit({ name: "", frequency_per_week: 7, type: 'check', target_value: 0, unit: "", color: "blue", emoji: "🎯", area: "alma", goal_id: "" });
       setIsHabitModalOpen(false);
       fetchTrackerData();
     } catch (error) {
@@ -886,6 +892,32 @@ export function Metas() {
             </div>
           )}
 
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-secondary">Meta Vinculada (Opcional)</label>
+            <select 
+              value={newHabit.goal_id}
+              onChange={(e) => setNewHabit({...newHabit, goal_id: e.target.value})}
+              className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+            >
+              <option value="">Nenhuma meta vinculada</option>
+              <optgroup label="Corpo">
+                {goals.corpo.map(g => (
+                  <option key={g.id} value={g.id}>{g.title}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Alma">
+                {goals.alma.map(g => (
+                  <option key={g.id} value={g.id}>{g.title}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Agência">
+                {goals.agencia.map(g => (
+                  <option key={g.id} value={g.id}>{g.title}</option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+
           <div className="flex gap-3 pt-4">
             <button 
               onClick={() => setIsHabitModalOpen(false)}
@@ -1097,6 +1129,146 @@ export function Metas() {
           </div>
         </div>
       </Modal>
+
+      {/* Gerenciamento de Hábitos */}
+      <div className="space-y-8 mt-16 animate-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/10 rounded-2xl">
+              <Activity className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="font-serif text-3xl font-semibold text-secondary">Gerenciamento de Hábitos</h2>
+              <p className="text-text-muted text-sm">Configure seus hábitos e frequências semanais.</p>
+            </div>
+          </div>
+
+          <button 
+            onClick={() => {
+              setEditingHabitId(null);
+              setNewHabit({ name: "", frequency_per_week: 7, type: 'check', target_value: 0, unit: "", color: "blue", emoji: "🎯", area: "alma", goal_id: "" });
+              setIsHabitModalOpen(true);
+            }}
+            className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl hover:bg-primary/90 transition-all shadow-md font-medium"
+          >
+            <Plus className="w-5 h-5" />
+            Novo Hábito
+          </button>
+        </div>
+
+        {/* Tabs de Hábitos */}
+        <div className="flex bg-surface border border-surface-border p-1.5 rounded-2xl w-fit">
+          <button 
+            onClick={() => setActiveHabitTab('pessoal')}
+            className={cn(
+              "flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all",
+              activeHabitTab === 'pessoal' ? "bg-background text-primary shadow-sm" : "text-text-muted hover:text-primary"
+            )}
+          >
+            Pessoal
+          </button>
+          <button 
+            onClick={() => setActiveHabitTab('agencia')}
+            className={cn(
+              "flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all",
+              activeHabitTab === 'agencia' ? "bg-background text-primary shadow-sm" : "text-text-muted hover:text-primary"
+            )}
+          >
+            Agência
+          </button>
+        </div>
+
+        {/* Lista de Hábitos */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {habits
+            .filter(habit => {
+              if (activeHabitTab === 'pessoal') {
+                return habit.area === 'alma' || habit.area === 'corpo' || !habit.area;
+              } else {
+                return habit.area === 'agencia';
+              }
+            })
+            .map(habit => {
+              const areaColor = habit.area === 'alma' ? 'bg-orange-100 text-orange-600' : 
+                                habit.area === 'corpo' ? 'bg-emerald-100 text-emerald-600' : 
+                                habit.area === 'agencia' ? 'bg-blue-100 text-blue-600' : 
+                                'bg-gray-100 text-gray-600';
+              
+              const areaLabel = habit.area === 'alma' ? 'Alma' : 
+                                habit.area === 'corpo' ? 'Corpo' : 
+                                habit.area === 'agencia' ? 'Agência' : 
+                                'Pessoal';
+
+              return (
+                <div key={habit.id} className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm hover:shadow-md transition-all group relative">
+                  <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                    <button 
+                      onClick={() => handleEditHabitClick(habit)}
+                      className="p-2 bg-background border border-surface-border rounded-xl text-text-muted hover:text-primary transition-all"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteHabit(habit.id)}
+                      className="p-2 bg-background border border-surface-border rounded-xl text-text-muted hover:text-red-500 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="text-3xl bg-background w-12 h-12 rounded-2xl flex items-center justify-center border border-surface-border shadow-sm">
+                      {habit.emoji || '🎯'}
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-secondary leading-tight">{habit.name}</h4>
+                      <div className={cn("text-[10px] font-bold uppercase tracking-widest mt-1 px-2 py-0.5 rounded-full inline-block", areaColor)}>
+                        {areaLabel}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-text-muted">Frequência:</span>
+                      <span className="font-medium text-secondary">{habit.frequency_per_week}x por semana</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-text-muted">Tipo:</span>
+                      <span className="font-medium text-secondary">
+                        {habit.type === 'numeric' ? 'Numérico' : habit.type === 'negative' ? 'Negativo' : 'Check'}
+                      </span>
+                    </div>
+                    {habit.goal_id && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-text-muted">Meta:</span>
+                        <span className="font-medium text-primary flex items-center gap-1">
+                          <Target className="w-3 h-3" />
+                          {(() => {
+                            const allGoals = [...goals.corpo, ...goals.alma, ...goals.agencia];
+                            return allGoals.find(g => g.id === habit.goal_id)?.title || 'Meta vinculada';
+                          })()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          
+          {habits.filter(habit => {
+            if (activeHabitTab === 'pessoal') {
+              return habit.area === 'alma' || habit.area === 'corpo' || !habit.area;
+            } else {
+              return habit.area === 'agencia';
+            }
+          }).length === 0 && (
+            <div className="col-span-full py-12 text-center bg-surface/50 border border-dashed border-surface-border rounded-3xl">
+              <p className="text-text-muted italic">Nenhum hábito cadastrado nesta área.</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
