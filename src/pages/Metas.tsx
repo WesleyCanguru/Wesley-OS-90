@@ -45,6 +45,9 @@ type HabitLog = {
   completed: boolean;
 };
 
+const COMMON_EMOJIS = ["🎯", "💪", "💧", "🥗", "🧘", "📚", "💻", "💰", "🏃", "🍎", "🥛", "🛌", "🚶", "🤝", "✍️", "🧠", "🔋", "📈"];
+const COMMON_UNITS = ["ml", "L", "kg", "g", "min", "h", "km", "m", "un", "vezes", "kcal"];
+
 export function Metas() {
   const user = useUser();
   
@@ -817,59 +820,100 @@ export function Metas() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-secondary">Emoji</label>
-              <input 
-                type="text"
-                value={newHabit.emoji}
-                onChange={(e) => setNewHabit({...newHabit, emoji: e.target.value})}
-                placeholder="Ex: 💧"
-                className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-center text-xl"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-secondary">Escolha um Emoji</label>
+              <div className="grid grid-cols-6 gap-2 p-3 bg-background border border-surface-border rounded-xl">
+                {COMMON_EMOJIS.map(emoji => (
+                  <button
+                    key={emoji}
+                    onClick={() => setNewHabit({...newHabit, emoji})}
+                    className={cn(
+                      "w-10 h-10 flex items-center justify-center rounded-lg text-xl transition-all",
+                      newHabit.emoji === emoji ? "bg-primary/10 border-2 border-primary" : "hover:bg-surface-hover border border-transparent"
+                    )}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-secondary">Área</label>
-              <select 
-                value={newHabit.area}
-                onChange={(e) => setNewHabit({...newHabit, area: e.target.value as any})}
-                className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-              >
-                <option value="alma">🟠 Alma</option>
-                <option value="corpo">🟢 Corpo</option>
-                <option value="agencia">🔵 Agência</option>
-              </select>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-secondary">Área</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['alma', 'corpo', 'agencia'] as const).map(area => (
+                    <button
+                      key={area}
+                      onClick={() => {
+                        // Quando muda a área, limpa a meta vinculada para forçar nova seleção
+                        setNewHabit({...newHabit, area, goal_id: ""});
+                      }}
+                      className={cn(
+                        "py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all",
+                        newHabit.area === area 
+                          ? "bg-primary text-white border-primary shadow-sm" 
+                          : "bg-background text-text-muted border-surface-border hover:border-primary/30"
+                      )}
+                    >
+                      {area === 'alma' ? 'Alma' : area === 'corpo' ? 'Corpo' : 'Agência'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-secondary">Tipo de Hábito</label>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { id: 'check', label: 'Check Diário', desc: 'Simples feito/não feito' },
+                    { id: 'numeric', label: 'Numérico', desc: 'Atingir um valor diário' },
+                    { id: 'negative', label: 'Negativo', desc: 'Evitar comportamento' }
+                  ].map(type => (
+                    <button
+                      key={type.id}
+                      onClick={() => setNewHabit({...newHabit, type: type.id as any})}
+                      className={cn(
+                        "flex flex-col p-3 rounded-xl border text-left transition-all",
+                        newHabit.type === type.id 
+                          ? "bg-primary/5 border-primary ring-1 ring-primary/20" 
+                          : "bg-background border-surface-border hover:border-primary/30"
+                      )}
+                    >
+                      <span className={cn("text-sm font-bold", newHabit.type === type.id ? "text-primary" : "text-secondary")}>
+                        {type.label}
+                      </span>
+                      <span className="text-[10px] text-text-muted">{type.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-secondary">Tipo</label>
-              <select 
-                value={newHabit.type}
-                onChange={(e) => setNewHabit({...newHabit, type: e.target.value as any})}
-                className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-              >
-                <option value="check">Check Diário</option>
-                <option value="numeric">Numérico (Meta)</option>
-                <option value="negative">Negativo (Evitar)</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-secondary">Freq. Semanal</label>
-              <input 
-                type="number"
-                min="1"
-                max="7"
-                value={newHabit.frequency_per_week}
-                onChange={(e) => setNewHabit({...newHabit, frequency_per_week: parseInt(e.target.value)})}
-                className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-              />
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-secondary">Frequência Semanal</label>
+            <div className="flex justify-between gap-2">
+              {[1, 2, 3, 4, 5, 6, 7].map(freq => (
+                <button
+                  key={freq}
+                  onClick={() => setNewHabit({...newHabit, frequency_per_week: freq})}
+                  className={cn(
+                    "flex-1 py-3 rounded-xl border font-mono font-bold transition-all",
+                    newHabit.frequency_per_week === freq 
+                      ? "bg-primary text-white border-primary shadow-md scale-105" 
+                      : "bg-background text-text-muted border-surface-border hover:bg-surface-hover"
+                  )}
+                >
+                  {freq}x
+                </button>
+              ))}
             </div>
           </div>
 
           {newHabit.type === 'numeric' && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-secondary">Meta Diária</label>
                 <input 
@@ -881,41 +925,43 @@ export function Metas() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-secondary">Unidade</label>
-                <input 
-                  type="text"
+                <select 
                   value={newHabit.unit}
                   onChange={(e) => setNewHabit({...newHabit, unit: e.target.value})}
-                  placeholder="Ex: ml, kg, min"
                   className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-                />
+                >
+                  <option value="">Selecione...</option>
+                  {COMMON_UNITS.map(u => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-secondary">Meta Vinculada (Opcional)</label>
+            <label className="text-sm font-medium text-secondary">Meta Vinculada (Obrigatória)</label>
             <select 
               value={newHabit.goal_id}
               onChange={(e) => setNewHabit({...newHabit, goal_id: e.target.value})}
-              className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+              className={cn(
+                "w-full px-4 py-3 bg-background border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all",
+                !newHabit.goal_id ? "border-orange-300" : "border-surface-border"
+              )}
             >
-              <option value="">Nenhuma meta vinculada</option>
-              <optgroup label="Corpo">
-                {goals.corpo.map(g => (
+              <option value="">Selecione uma meta de {newHabit.area === 'alma' ? 'Alma' : newHabit.area === 'corpo' ? 'Corpo' : 'Agência'}...</option>
+              {(() => {
+                const filteredGoals = goals[newHabit.area as keyof typeof goals] || [];
+                return filteredGoals.map(g => (
                   <option key={g.id} value={g.id}>{g.title}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Alma">
-                {goals.alma.map(g => (
-                  <option key={g.id} value={g.id}>{g.title}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Agência">
-                {goals.agencia.map(g => (
-                  <option key={g.id} value={g.id}>{g.title}</option>
-                ))}
-              </optgroup>
+                ));
+              })()}
             </select>
+            {!newHabit.goal_id && (
+              <p className="text-[10px] text-orange-600 font-medium px-1">
+                * Você deve vincular este hábito a uma meta de {newHabit.area === 'alma' ? 'Alma' : newHabit.area === 'corpo' ? 'Corpo' : 'Agência'}.
+              </p>
+            )}
           </div>
 
           <div className="flex gap-3 pt-4">
@@ -927,7 +973,13 @@ export function Metas() {
             </button>
             <button 
               onClick={handleAddHabit}
-              className="flex-1 px-4 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors font-medium shadow-sm"
+              disabled={!newHabit.goal_id || !newHabit.name}
+              className={cn(
+                "flex-1 px-4 py-3 rounded-xl transition-colors font-medium shadow-sm",
+                (!newHabit.goal_id || !newHabit.name) 
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
+                  : "bg-primary text-white hover:bg-primary/90"
+              )}
             >
               {editingHabitId ? "Salvar Alterações" : "Criar Hábito"}
             </button>
