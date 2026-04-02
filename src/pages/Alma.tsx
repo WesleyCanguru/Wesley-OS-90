@@ -62,26 +62,8 @@ export function Alma() {
   const fetchAlmaData = async () => {
     if (!user) return;
 
-    if (user.name === 'Wesley') {
-      setEnergyMoodData([
-        { day: "12/03", energia: 4, humor: 4 },
-        { day: "13/03", energia: 3, humor: 4 },
-        { day: "14/03", energia: 5, humor: 5 },
-        { day: "15/03", energia: 4, humor: 3 },
-        { day: "16/03", energia: 2, humor: 3 },
-        { day: "17/03", energia: 4, humor: 4 },
-        { day: "18/03", energia: 4, humor: 5 },
-      ]);
-      setHabitsTracker([
-        { name: "Rotina Matinal", icon: Sunrise, days: [true, true, true, false, true, true, true] },
-        { name: "Leitura (15m)", icon: BookOpen, days: [true, true, true, true, true, false, true] },
-        { name: "Espiritualidade", icon: Brain, days: [false, true, true, true, true, true, true] },
-        { name: "Organização", icon: CalendarDays, days: [true, true, false, true, true, true, true] },
-      ]);
-    } else {
-      setEnergyMoodData([]);
-      setHabitsTracker([]);
-    }
+    setEnergyMoodData([]);
+    setHabitsTracker([]);
     setLoading(false);
   };
 
@@ -104,22 +86,22 @@ export function Alma() {
         <div className="flex gap-3">
           <div className="bg-surface border border-surface-border px-5 py-2.5 rounded-full flex items-center gap-3 shadow-sm">
             <Flame className="w-5 h-5 text-orange-500" />
-            <span className="font-medium text-secondary">Sequência: <span className="font-mono font-bold text-primary">{user?.name === 'Wesley' ? '12 Dias' : '0 Dias'}</span></span>
+            <span className="font-medium text-secondary">Sequência: <span className="font-mono font-bold text-primary">0 Dias</span></span>
           </div>
         </div>
       </header>
 
       {/* Top Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard label="Score Disciplina" value={user?.name === 'Wesley' ? "92" : "0"} subtext={user?.name === 'Wesley' ? "Excelente" : ""} icon={CheckCircle2} color="text-emerald-600" />
-        <MetricCard label="Score Constância" value={user?.name === 'Wesley' ? "88" : "0"} subtext={user?.name === 'Wesley' ? "+5% vs semana ant." : ""} icon={CalendarDays} color="text-primary" />
+        <MetricCard label="Score Disciplina" value="0" subtext="" icon={CheckCircle2} color="text-emerald-600" />
+        <MetricCard label="Score Constância" value="0" subtext="" icon={CalendarDays} color="text-primary" />
         <div className="relative group cursor-pointer" onClick={() => setIsSettingsModalOpen(true)}>
-          <MetricCard label="Média Energia" value={user?.name === 'Wesley' ? "3.8" : "0"} subtext={`Meta: > ${userGoals?.targetEnergy || 4.0}`} icon={Zap} color="text-yellow-500" />
+          <MetricCard label="Média Energia" value="0" subtext={`Meta: > ${userGoals?.targetEnergy || 4.0}`} icon={Zap} color="text-yellow-500" />
           <div className="absolute inset-0 bg-black/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <span className="text-xs font-bold text-secondary bg-white/90 px-2 py-1 rounded shadow-sm">Editar Meta</span>
           </div>
         </div>
-        <MetricCard label="Média Humor" value={user?.name === 'Wesley' ? "4.1" : "0"} subtext="Estável" icon={Smile} color="text-blue-500" />
+        <MetricCard label="Média Humor" value="0" subtext="Estável" icon={Smile} color="text-blue-500" />
       </div>
 
       {/* Daily Note (Mais proeminente) */}
@@ -132,13 +114,13 @@ export function Alma() {
           </div>
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
             <p className="text-white/90 text-xl md:text-2xl leading-relaxed font-light italic max-w-4xl">
-              "A disciplina de hoje é o conforto de amanhã. Manter a rotina matinal mesmo cansado fez toda a diferença na produtividade da tarde."
+              "A disciplina de hoje é o conforto de amanhã."
             </p>
             <div className="text-sm font-mono text-white/50 uppercase tracking-widest whitespace-nowrap border-l border-white/10 pl-8 hidden md:block">
-              Ontem, 17 de Março
+              Hoje
             </div>
             <div className="text-xs font-mono text-white/40 uppercase tracking-widest md:hidden">
-              Ontem, 17 de Março
+              Hoje
             </div>
           </div>
         </div>
@@ -201,9 +183,7 @@ export function Alma() {
         <div className="bg-surface border border-surface-border rounded-3xl p-8 shadow-sm">
           <h2 className="font-serif text-xl font-semibold text-secondary mb-6">Últimas Vitórias</h2>
           <div className="space-y-4">
-            <WinItem day="Ontem" text="Fechei todos os anéis do Apple Watch e li 20 páginas." />
-            <WinItem day="D-2" text="Resisti à sobremesa no jantar de negócios." />
-            <WinItem day="D-3" text="Acordei às 05:30 sem usar o botão soneca." />
+            <p className="text-sm text-text-muted italic">Nenhuma vitória registrada ainda.</p>
           </div>
         </div>
 

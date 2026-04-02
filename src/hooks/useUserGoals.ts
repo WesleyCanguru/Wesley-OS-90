@@ -30,8 +30,8 @@ export function useUserGoals() {
       if (error) throw error;
 
       const defaultGoals: UserGoals = {
-        targetWeight: 78,
-        targetBf: 12,
+        targetWeight: 0,
+        targetBf: 0,
         targetCalories: NUTRITION_TARGETS[user.name]?.calories ?? DEFAULT_NUTRITION.calories,
         targetProtein: NUTRITION_TARGETS[user.name]?.protein ?? DEFAULT_NUTRITION.protein,
         targetEnergy: 4.0,
@@ -52,8 +52,8 @@ export function useUserGoals() {
       } else {
         // If no goals in DB, seed them
         const coreGoals = [
-          { user_name: user.name, title: 'Peso', category: 'Corpo', target_value: defaultGoals.targetWeight, unit: 'kg', start_value: 80, current_value: 80 },
-          { user_name: user.name, title: 'Gordura Corporal', category: 'Corpo', target_value: defaultGoals.targetBf, unit: '%', start_value: 15, current_value: 15 },
+          { user_name: user.name, title: 'Peso', category: 'Corpo', target_value: 0, unit: 'kg', start_value: 0, current_value: 0 },
+          { user_name: user.name, title: 'Gordura Corporal', category: 'Corpo', target_value: 0, unit: '%', start_value: 0, current_value: 0 },
           { user_name: user.name, title: 'Calorias Diárias', category: 'Corpo', target_value: defaultGoals.targetCalories, unit: 'kcal', start_value: 0, current_value: 0 },
           { user_name: user.name, title: 'Proteína Diária', category: 'Corpo', target_value: defaultGoals.targetProtein, unit: 'g', start_value: 0, current_value: 0 },
           { user_name: user.name, title: 'Energia Diária', category: 'Alma', target_value: defaultGoals.targetEnergy, unit: '/ 5', start_value: 0, current_value: 0 },
