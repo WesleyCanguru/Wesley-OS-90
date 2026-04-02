@@ -13,7 +13,8 @@ import {
   Loader2,
   Sparkles,
   Trash2,
-  Edit2
+  Edit2,
+  Settings
 } from "lucide-react";
 import { 
   LineChart, 
@@ -188,7 +189,18 @@ export function Corpo() {
       }
     });
     
-    return Math.min(100, Math.round((completedDays / habit.frequency_per_week) * 100));
+    let targetDays = habit.frequency_per_week || 7;
+    const { currentWeek } = getCycleInfo();
+    
+    if (currentWeek === 1) {
+      if (targetDays >= 6) {
+        targetDays = 4;
+      } else {
+        targetDays = Math.min(4, targetDays);
+      }
+    }
+    
+    return Math.min(100, Math.round((completedDays / targetDays) * 100));
   };
 
   const handleSaveSettings = () => {
@@ -954,11 +966,18 @@ export function Corpo() {
         </div>
         <div className="flex gap-3">
           <button 
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="bg-surface border border-surface-border text-text-muted px-4 py-2.5 rounded-full font-medium hover:bg-surface-hover hover:text-primary transition-colors flex items-center gap-2 shadow-sm"
+          >
+            <Settings className="w-4 h-4" />
+            <span className="hidden sm:inline">Metas</span>
+          </button>
+          <button 
             onClick={handleNewPhoto}
             className="bg-surface border border-surface-border text-primary px-5 py-2.5 rounded-full font-medium hover:bg-surface-hover transition-colors flex items-center gap-2 shadow-sm"
           >
             <Camera className="w-4 h-4" />
-            Nova Foto
+            <span className="hidden sm:inline">Nova Foto</span>
           </button>
           <button 
             onClick={handleRegisterMeasurements}
@@ -1270,6 +1289,47 @@ export function Corpo() {
       </div>
 
       {/* Photo Angle Selection Modal */}
+      <Modal 
+        isOpen={isSettingsModalOpen} 
+        onClose={() => setIsSettingsModalOpen(false)} 
+        title="Metas de Nutrição e Corpo"
+      >
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <MeasurementInput 
+              label="Meta de Peso" 
+              unit="kg" 
+              value={settingsForm.targetWeight} 
+              onChange={(v) => setSettingsForm({...settingsForm, targetWeight: v})} 
+            />
+            <MeasurementInput 
+              label="Meta de Gordura" 
+              unit="%" 
+              value={settingsForm.targetBf} 
+              onChange={(v) => setSettingsForm({...settingsForm, targetBf: v})} 
+            />
+            <MeasurementInput 
+              label="Meta de Calorias" 
+              unit="kcal" 
+              value={settingsForm.targetCalories} 
+              onChange={(v) => setSettingsForm({...settingsForm, targetCalories: v})} 
+            />
+            <MeasurementInput 
+              label="Meta de Proteína" 
+              unit="g" 
+              value={settingsForm.targetProtein} 
+              onChange={(v) => setSettingsForm({...settingsForm, targetProtein: v})} 
+            />
+          </div>
+          <button 
+            onClick={handleSaveSettings}
+            className="w-full p-4 bg-primary text-white rounded-2xl text-sm font-bold hover:bg-primary/90 transition-all shadow-md"
+          >
+            Salvar Metas
+          </button>
+        </div>
+      </Modal>
+
       <Modal 
         isOpen={isPhotoAngleModalOpen} 
         onClose={() => setIsPhotoAngleModalOpen(false)} 

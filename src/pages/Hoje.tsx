@@ -27,6 +27,8 @@ type Habit = {
   target_value: number;
   unit: string;
   color: string;
+  emoji: string;
+  area: 'alma' | 'corpo' | 'agencia';
 };
 
 type HabitLog = {
@@ -64,15 +66,6 @@ export function Hoje() {
   const [improvement, setImprovement] = useState("");
   const [savingReflection, setSavingReflection] = useState(false);
   const [reflectionSaved, setReflectionSaved] = useState(false);
-
-  // Modal de Novo Hábito
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newHabit, setNewHabit] = useState<Partial<Habit> & { goal_id?: string }>({
-    type: 'check',
-    frequency_per_week: 7,
-    target_value: 1,
-    color: 'blue'
-  });
 
   // Tabs
   const [activeTab, setActiveTab] = useState<'pessoal' | 'agencia'>('pessoal');
@@ -315,38 +308,6 @@ export function Hoje() {
     }
   };
 
-  const handleCreateHabit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !newHabit.name) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('habits')
-        .insert([{
-          user_name: user.name,
-          name: newHabit.name,
-          type: newHabit.type,
-          frequency_per_week: newHabit.frequency_per_week,
-          target_value: newHabit.type === 'check' ? 1 : newHabit.target_value,
-          unit: newHabit.unit || '',
-          color: newHabit.color,
-          goal_id: newHabit.goal_id || null
-        }])
-        .select();
-
-      if (error) throw error;
-      
-      if (data) {
-        setHabits([...habits, data[0]]);
-      }
-      setIsModalOpen(false);
-      setNewHabit({ type: 'check', frequency_per_week: 7, target_value: 1, color: 'blue', goal_id: undefined });
-    } catch (error) {
-      console.error("Erro ao criar hábito:", error);
-      alert("Erro ao criar hábito.");
-    }
-  };
-
   const getDayName = (date: Date) => {
     const days = ['Do', 'Se', 'Te', 'Qu', 'Qu', 'Se', 'Sá'];
     return days[date.getDay()];
@@ -373,14 +334,6 @@ export function Hoje() {
       <div className="sticky top-0 z-30 bg-background/90 backdrop-blur-xl pt-6 pb-4 border-b border-surface-border -mx-6 px-6 md:-mx-10 md:px-10 lg:-mx-16 lg:px-16">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-serif font-bold text-primary">Hoje</h1>
-          {activeTab === 'pessoal' && (
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
-          )}
         </div>
 
         {/* Tabs */}
@@ -394,18 +347,16 @@ export function Hoje() {
           >
             Pessoal
           </button>
-          {user?.name === 'Wesley' && (
-            <button
-              onClick={() => setActiveTab('agencia')}
-              className={cn(
-                "flex-1 py-2.5 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2",
-                activeTab === 'agencia' ? "bg-primary text-white shadow-md" : "bg-surface text-text-muted hover:bg-surface-hover border border-surface-border"
-              )}
-            >
-              <Briefcase className="w-4 h-4" />
-              Agência
-            </button>
-          )}
+          <button
+            onClick={() => setActiveTab('agencia')}
+            className={cn(
+              "flex-1 py-2.5 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2",
+              activeTab === 'agencia' ? "bg-primary text-white shadow-md" : "bg-surface text-text-muted hover:bg-surface-hover border border-surface-border"
+            )}
+          >
+            <Briefcase className="w-4 h-4" />
+            Agência
+          </button>
         </div>
 
         <div className="flex justify-between items-center">
@@ -441,28 +392,41 @@ export function Hoje() {
         </div>
       </div>
 
-      {activeTab === 'pessoal' ? (
-        <>
-          {/* Habits List */}
-          <div className="space-y-4">
-        {habits.length === 0 ? (
+      {/* Habits List */}
+      <div className="space-y-4">
+        {habits.filter(habit => {
+          if (activeTab === 'pessoal') {
+            return habit.area === 'alma' || habit.area === 'corpo' || !habit.area;
+          } else {
+            return habit.area === 'agencia';
+          }
+        }).length === 0 ? (
           <div className="text-center py-12 bg-surface border border-surface-border rounded-3xl">
             <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4">
               <Check className="w-8 h-8" />
             </div>
             <h3 className="text-lg font-serif font-bold text-secondary mb-2">Nenhum hábito cadastrado</h3>
-            <p className="text-text-muted text-sm mb-6 max-w-xs mx-auto">Comece adicionando os hábitos que vão te levar à sua meta de 12 semanas.</p>
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="bg-primary text-white px-6 py-2.5 rounded-full font-medium shadow-md hover:bg-primary/90 transition-colors"
-            >
-              Adicionar Hábito
-            </button>
+            <p className="text-text-muted text-sm mb-6 max-w-xs mx-auto">Comece adicionando os hábitos que vão te levar à sua meta de 12 semanas na tela de Metas.</p>
           </div>
         ) : (
-          habits.map(habit => {
+          habits.filter(habit => {
+            if (activeTab === 'pessoal') {
+              return habit.area === 'alma' || habit.area === 'corpo' || !habit.area;
+            } else {
+              return habit.area === 'agencia';
+            }
+          }).map(habit => {
             const log = logs[habit.id];
-            const colorTheme = COLORS[habit.color] || COLORS.blue;
+            
+            const getAreaColor = (area?: string) => {
+              switch (area) {
+                case 'alma': return COLORS.orange;
+                case 'corpo': return COLORS.green;
+                case 'agencia': return COLORS.blue;
+                default: return COLORS.gray;
+              }
+            };
+            const colorTheme = getAreaColor(habit.area);
             
             // Lógica de exibição por tipo
             if (habit.type === 'numeric') {
@@ -476,8 +440,8 @@ export function Hoje() {
                   isCompleted ? colorTheme.border : "border-surface-border"
                 )}>
                   <div className="flex items-center gap-4">
-                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", colorTheme.light, colorTheme.text)}>
-                      <Droplet className="w-5 h-5" />
+                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-xl", colorTheme.light, colorTheme.text)}>
+                      {habit.emoji || <Droplet className="w-5 h-5" />}
                     </div>
                     <div>
                       <h3 className={cn("font-medium", isCompleted ? colorTheme.text : "text-secondary")}>{habit.name}</h3>
@@ -509,8 +473,8 @@ export function Hoje() {
                   isCompleted ? colorTheme.border : "border-surface-border"
                 )}>
                   <div className="flex items-center gap-4">
-                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", colorTheme.light, colorTheme.text)}>
-                      <Check className="w-5 h-5" />
+                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-xl", colorTheme.light, colorTheme.text)}>
+                      {habit.emoji || <Check className="w-5 h-5" />}
                     </div>
                     <div>
                       <h3 className={cn("font-medium", isCompleted ? colorTheme.text : "text-secondary")}>{habit.name}</h3>
@@ -549,10 +513,10 @@ export function Hoje() {
                 )}>
                   <div className="flex items-center gap-4">
                     <div className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center",
+                      "w-10 h-10 rounded-full flex items-center justify-center text-xl",
                       hasFailed ? "bg-red-100 text-red-500" : "bg-white/20 text-white"
                     )}>
-                      <Ban className="w-5 h-5" />
+                      {habit.emoji || <Ban className="w-5 h-5" />}
                     </div>
                     <div>
                       <h3 className={cn("font-medium", hasFailed ? "text-red-700" : "text-white")}>{habit.name}</h3>
@@ -579,335 +543,120 @@ export function Hoje() {
         )}
       </div>
 
-      {/* Reflexão do Dia */}
-      <div className="mt-12 pt-8 border-t border-surface-border space-y-8">
-        <h2 className="font-serif text-2xl font-semibold text-secondary">Reflexão do Dia</h2>
-        
-        <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm space-y-8">
-          {/* Energia e Humor */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-2 text-text-muted font-medium">
-                  <Battery className="w-5 h-5" />
-                  Energia
-                </div>
-                <span className="font-mono font-bold text-primary">{energy}/5</span>
-              </div>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((val) => (
-                  <button
-                    key={`energy-${val}`}
-                    onClick={() => setEnergy(val)}
-                    className={cn(
-                      "flex-1 h-12 rounded-xl border transition-all",
-                      energy >= val 
-                        ? "bg-primary border-primary text-white shadow-sm" 
-                        : "bg-background border-surface-border text-text-muted hover:border-primary/50"
-                    )}
-                  >
-                    {val}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-2 text-text-muted font-medium">
-                  <Smile className="w-5 h-5" />
-                  Humor
-                </div>
-                <span className="font-mono font-bold text-primary">{mood}/5</span>
-              </div>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((val) => (
-                  <button
-                    key={`mood-${val}`}
-                    onClick={() => setMood(val)}
-                    className={cn(
-                      "flex-1 h-12 rounded-xl border transition-all",
-                      mood >= val 
-                        ? "bg-primary border-primary text-white shadow-sm" 
-                        : "bg-background border-surface-border text-text-muted hover:border-primary/50"
-                    )}
-                  >
-                    {val}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Textos */}
-          <div className="space-y-6">
-            <div>
-              <label className="flex items-center gap-2 text-sm font-bold text-text-muted uppercase tracking-widest mb-3">
-                <Trophy className="w-4 h-4 text-emerald-500" />
-                Maior vitória do dia
-              </label>
-              <textarea 
-                value={victory}
-                onChange={(e) => setVictory(e.target.value)}
-                placeholder="O que você fez de melhor hoje?"
-                className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none h-24"
-              />
-            </div>
-            
-            <div>
-              <label className="flex items-center gap-2 text-sm font-bold text-text-muted uppercase tracking-widest mb-3">
-                <Target className="w-4 h-4 text-primary" />
-                Ajuste para amanhã
-              </label>
-              <textarea 
-                value={improvement}
-                onChange={(e) => setImprovement(e.target.value)}
-                placeholder="Onde você precisa melhorar?"
-                className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none h-24"
-              />
-            </div>
-          </div>
-
-          <button 
-            onClick={handleSaveReflection}
-            disabled={savingReflection}
-            className={cn(
-              "w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2",
-              reflectionSaved 
-                ? "bg-emerald-500 text-white" 
-                : "bg-primary/10 text-primary hover:bg-primary/20",
-              savingReflection && "opacity-70 cursor-not-allowed"
-            )}
-          >
-            {savingReflection ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : reflectionSaved ? (
-              <>
-                <Check className="w-5 h-5" />
-                Reflexão Salva!
-              </>
-            ) : (
-              <>
-                <Save className="w-5 h-5" />
-                Salvar Reflexão
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-        </>
-      ) : (
-        <div className="space-y-8 animate-in fade-in duration-500">
-          {/* Checklist Agência */}
-          <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm">
-            <h2 className="font-serif text-xl font-bold text-secondary mb-6 flex items-center gap-2">
-              <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm">🇧🇷</span>
-              Canguru (Brasil)
-            </h2>
-            
-            <div className="space-y-4">
-              {[
-                { key: 'brAbordagens', label: 'Novas Abordagens', max: 20, icon: '🎯' },
-                { key: 'brFollowups', label: 'Follow-ups', max: 12, icon: '🔄' },
-                { key: 'brCalls', label: 'Calls Realizadas', max: 1, icon: '📞' },
-                { key: 'brPropostas', label: 'Propostas Enviadas', max: 1, icon: '📄' },
-              ].map((item) => {
-                const val = currentAgencyLog[item.key as keyof typeof currentAgencyLog] || 0;
-                const dateStr = new Date(selectedDate.getTime() - (selectedDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-                return (
-                  <div key={item.key} className="flex items-center justify-between p-4 bg-background border border-surface-border rounded-2xl">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{item.icon}</span>
-                      <div>
-                        <div className="font-medium text-secondary">{item.label}</div>
-                        <div className="text-xs text-text-muted font-mono">{val}/{item.max}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => updateAgencyLog(dateStr, { [item.key]: Math.max(0, val - 1) })}
-                        className="w-8 h-8 rounded-full bg-surface border border-surface-border flex items-center justify-center text-text-muted hover:text-red-500"
-                      >
-                        -
-                      </button>
-                      <span className="w-8 text-center font-mono font-bold text-primary">{val}</span>
-                      <button 
-                        onClick={() => updateAgencyLog(dateStr, { [item.key]: Math.min(item.max, val + 1) })}
-                        className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20"
-                      >
-                        +
-                      </button>
-                    </div>
+      {activeTab === 'pessoal' && (
+        <div className="mt-12 pt-8 border-t border-surface-border space-y-8">
+          <h2 className="font-serif text-2xl font-semibold text-secondary">Reflexão do Dia</h2>
+          
+          <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm space-y-8">
+            {/* Energia e Humor */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <div className="flex items-center gap-2 text-text-muted font-medium">
+                    <Battery className="w-5 h-5" />
+                    Energia
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm">
-            <h2 className="font-serif text-xl font-bold text-secondary mb-6 flex items-center gap-2">
-              <span className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-sm">🇨🇦</span>
-              Kanoa (Canadá)
-            </h2>
-            
-            <div className="space-y-4">
-              {[
-                { key: 'canAbordagens', label: 'Novas Abordagens', max: 16, icon: '🎯' },
-                { key: 'canFollowups', label: 'Follow-ups', max: 8, icon: '🔄' },
-              ].map((item) => {
-                const val = currentAgencyLog[item.key as keyof typeof currentAgencyLog] || 0;
-                const dateStr = new Date(selectedDate.getTime() - (selectedDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-                return (
-                  <div key={item.key} className="flex items-center justify-between p-4 bg-background border border-surface-border rounded-2xl">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{item.icon}</span>
-                      <div>
-                        <div className="font-medium text-secondary">{item.label}</div>
-                        <div className="text-xs text-text-muted font-mono">{val}/{item.max}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => updateAgencyLog(dateStr, { [item.key]: Math.max(0, val - 1) })}
-                        className="w-8 h-8 rounded-full bg-surface border border-surface-border flex items-center justify-center text-text-muted hover:text-red-500"
-                      >
-                        -
-                      </button>
-                      <span className="w-8 text-center font-mono font-bold text-primary">{val}</span>
-                      <button 
-                        onClick={() => updateAgencyLog(dateStr, { [item.key]: Math.min(item.max, val + 1) })}
-                        className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Criação de Hábito */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-surface w-full md:max-w-md md:rounded-3xl rounded-t-3xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="font-serif text-2xl font-semibold text-secondary">Novo Hábito</h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-background rounded-full transition-colors">
-                <X className="w-5 h-5 text-text-muted" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleCreateHabit} className="space-y-5">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Nome do Hábito</label>
-                <input 
-                  autoFocus
-                  required
-                  type="text" 
-                  value={newHabit.name || ''}
-                  onChange={e => setNewHabit({...newHabit, name: e.target.value})}
-                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                  placeholder="Ex: Beber água, Ler 10 páginas..."
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Tipo de Registro</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewHabit({...newHabit, type: 'check', color: 'purple'})}
-                    className={cn("py-2 px-3 rounded-xl text-sm font-medium border transition-all flex flex-col items-center gap-1", newHabit.type === 'check' ? "bg-purple-50 border-purple-200 text-purple-700" : "bg-background border-surface-border text-text-muted")}
-                  >
-                    <Check className="w-4 h-4" /> Sim/Não
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewHabit({...newHabit, type: 'numeric', color: 'blue'})}
-                    className={cn("py-2 px-3 rounded-xl text-sm font-medium border transition-all flex flex-col items-center gap-1", newHabit.type === 'numeric' ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-background border-surface-border text-text-muted")}
-                  >
-                    <Droplet className="w-4 h-4" /> Quantidade
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewHabit({...newHabit, type: 'negative', color: 'red'})}
-                    className={cn("py-2 px-3 rounded-xl text-sm font-medium border transition-all flex flex-col items-center gap-1", newHabit.type === 'negative' ? "bg-red-50 border-red-200 text-red-700" : "bg-background border-surface-border text-text-muted")}
-                  >
-                    <Ban className="w-4 h-4" /> Evitar
-                  </button>
+                  <span className="font-mono font-bold text-primary">{energy}/5</span>
                 </div>
-              </div>
-
-              {newHabit.type === 'numeric' && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Meta Diária</label>
-                    <input 
-                      required
-                      type="number" 
-                      value={newHabit.target_value || ''}
-                      onChange={e => setNewHabit({...newHabit, target_value: Number(e.target.value)})}
-                      className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-mono font-bold"
-                      placeholder="Ex: 2000"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Unidade</label>
-                    <select 
-                      required
-                      value={newHabit.unit || ''}
-                      onChange={e => setNewHabit({...newHabit, unit: e.target.value})}
-                      className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium text-text-main"
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <button
+                      key={`energy-${val}`}
+                      onClick={() => setEnergy(val)}
+                      className={cn(
+                        "flex-1 h-12 rounded-xl border transition-all",
+                        energy >= val 
+                          ? "bg-primary border-primary text-white shadow-sm" 
+                          : "bg-background border-surface-border text-text-muted hover:border-primary/50"
+                      )}
                     >
-                      <option value="" disabled>Selecione</option>
-                      <option value="ml">ml</option>
-                      <option value="litros">litros</option>
-                      <option value="minutos">minutos</option>
-                      <option value="horas">horas</option>
-                      <option value="páginas">páginas</option>
-                      <option value="km">km</option>
-                      <option value="passos">passos</option>
-                      <option value="vezes">vezes</option>
-                      <option value="kcal">kcal</option>
-                      <option value="g">gramas</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Meta Relacionada (Opcional)</label>
-                <select
-                  value={newHabit.goal_id || ''}
-                  onChange={e => setNewHabit({...newHabit, goal_id: e.target.value})}
-                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium text-text-main"
-                >
-                  <option value="">Nenhuma meta específica</option>
-                  {goals.map(goal => (
-                    <option key={goal.id} value={goal.id}>{goal.title}</option>
+                      {val}
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-text-muted uppercase tracking-widest">Frequência (Dias/Semana)</label>
-                <input 
-                  type="range" 
-                  min="1" max="7" 
-                  value={newHabit.frequency_per_week || 7}
-                  onChange={e => setNewHabit({...newHabit, frequency_per_week: Number(e.target.value)})}
-                  className="w-full accent-primary"
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <div className="flex items-center gap-2 text-text-muted font-medium">
+                    <Smile className="w-5 h-5" />
+                    Humor
+                  </div>
+                  <span className="font-mono font-bold text-primary">{mood}/5</span>
+                </div>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <button
+                      key={`mood-${val}`}
+                      onClick={() => setMood(val)}
+                      className={cn(
+                        "flex-1 h-12 rounded-xl border transition-all",
+                        mood >= val 
+                          ? "bg-primary border-primary text-white shadow-sm" 
+                          : "bg-background border-surface-border text-text-muted hover:border-primary/50"
+                      )}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Textos */}
+            <div className="space-y-6">
+              <div>
+                <label className="flex items-center gap-2 text-sm font-bold text-text-muted uppercase tracking-widest mb-3">
+                  <Trophy className="w-4 h-4 text-emerald-500" />
+                  Maior vitória do dia
+                </label>
+                <textarea 
+                  value={victory}
+                  onChange={(e) => setVictory(e.target.value)}
+                  placeholder="O que você fez de melhor hoje?"
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none h-24"
                 />
-                <div className="text-center font-mono font-bold text-primary">{newHabit.frequency_per_week}x na semana</div>
               </div>
+              
+              <div>
+                <label className="flex items-center gap-2 text-sm font-bold text-text-muted uppercase tracking-widest mb-3">
+                  <Target className="w-4 h-4 text-primary" />
+                  Ajuste para amanhã
+                </label>
+                <textarea 
+                  value={improvement}
+                  onChange={(e) => setImprovement(e.target.value)}
+                  placeholder="Onde você precisa melhorar?"
+                  className="w-full bg-background border border-surface-border rounded-xl px-4 py-3 text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none h-24"
+                />
+              </div>
+            </div>
 
-              <button type="submit" className="w-full bg-primary text-white py-4 rounded-xl font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 mt-4">
-                Salvar Hábito
-              </button>
-            </form>
+            <button 
+              onClick={handleSaveReflection}
+              disabled={savingReflection}
+              className={cn(
+                "w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2",
+                reflectionSaved 
+                  ? "bg-emerald-500 text-white" 
+                  : "bg-primary/10 text-primary hover:bg-primary/20",
+                savingReflection && "opacity-70 cursor-not-allowed"
+              )}
+            >
+              {savingReflection ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : reflectionSaved ? (
+                <>
+                  <Check className="w-5 h-5" />
+                  Reflexão Salva!
+                </>
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />
+                  Salvar Reflexão
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}

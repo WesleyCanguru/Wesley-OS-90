@@ -17,7 +17,7 @@ import { Metas } from "./pages/Metas";
 import { Auth } from "./components/Auth";
 import { SetupRequired } from "./components/SetupRequired";
 import { Session } from "@supabase/supabase-js";
-import { seedWesleyData, clearUserData } from "./lib/seed";
+import { clearUserData } from "./lib/seed";
 
 export default function App() {
   const [user, setUser] = useState<{ name: string } | null>(null);

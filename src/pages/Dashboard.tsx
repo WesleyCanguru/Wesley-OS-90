@@ -25,7 +25,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getCycleInfo } from "@/lib/cycle";
 import { cn } from "@/lib/utils";
-import { useAgencyData } from "@/hooks/useAgencyData";
+
 import { useUserGoals } from "@/hooks/useUserGoals";
 
 export function Dashboard() {
@@ -58,17 +58,7 @@ export function Dashboard() {
   const [weeklyLogs, setWeeklyLogs] = useState<any[]>([]);
   const [weekDates, setWeekDates] = useState<Date[]>([]);
 
-  // Agency Data
-  const { logs: agencyLogs } = useAgencyData();
   const todayStr = new Date(new Date().getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-  const todayAgencyLog = agencyLogs[todayStr] || {
-    brAbordagens: 0,
-    brFollowups: 0,
-    brCalls: 0,
-    brPropostas: 0,
-    canAbordagens: 0,
-    canFollowups: 0,
-  };
 
   useEffect(() => {
     if (user) {
@@ -133,10 +123,33 @@ export function Dashboard() {
   };
 
   const calculateHabitWeeklyPercentage = (habit: any) => {
-    const logs = weeklyLogs.filter(log => log.habit_id === habit.id && log.completed);
-    const totalDays = 7;
-    const targetDays = habit.frequency_per_week || 7;
-    return Math.round((logs.length / targetDays) * 100);
+    let completedDays = 0;
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    weekDates.forEach(date => {
+      const log = getLogForDate(habit.id, date);
+      const isFuture = date > today;
+
+      if (habit.type === 'negative') {
+        if (!isFuture && (!log || log.completed)) completedDays++;
+      } else {
+        if (log?.completed) completedDays++;
+      }
+    });
+
+    let targetDays = habit.frequency_per_week || 7;
+    
+    // Regra especial para a Semana 1
+    if (currentWeek === 1) {
+      if (targetDays >= 6) {
+        targetDays = 4;
+      } else {
+        targetDays = Math.min(4, targetDays);
+      }
+    }
+    
+    return Math.min(100, Math.round((completedDays / targetDays) * 100));
   };
 
   const fetchDashboardData = async () => {
@@ -408,82 +421,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Mini-Painel de Prospecção Hoje (Agência) */}
-      {user?.name === 'Wesley' && (
-        <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-blue-100 rounded-xl">
-              <Target className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="font-serif text-xl font-semibold text-secondary leading-tight">Prospecção Hoje</h3>
-              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Agência</p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Brasil */}
-            <div className="space-y-4">
-              <div className="text-sm font-bold text-secondary flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">🇧🇷</span>
-                Brasil
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-background border border-surface-border rounded-2xl p-4">
-                  <div className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Abordagens</div>
-                  <div className="flex items-end gap-2">
-                    <span className="text-2xl font-mono font-bold text-primary">{todayAgencyLog.brAbordagens}</span>
-                    <span className="text-sm text-text-muted font-mono mb-1">/20</span>
-                  </div>
-                  <div className="w-full bg-surface-border h-1.5 rounded-full mt-2 overflow-hidden">
-                    <div className="bg-primary h-full rounded-full" style={{ width: `${Math.min(100, (todayAgencyLog.brAbordagens / 20) * 100)}%` }} />
-                  </div>
-                </div>
-                <div className="bg-background border border-surface-border rounded-2xl p-4">
-                  <div className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Follow-ups</div>
-                  <div className="flex items-end gap-2">
-                    <span className="text-2xl font-mono font-bold text-primary">{todayAgencyLog.brFollowups}</span>
-                    <span className="text-sm text-text-muted font-mono mb-1">/12</span>
-                  </div>
-                  <div className="w-full bg-surface-border h-1.5 rounded-full mt-2 overflow-hidden">
-                    <div className="bg-primary h-full rounded-full" style={{ width: `${Math.min(100, (todayAgencyLog.brFollowups / 12) * 100)}%` }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Canadá */}
-            <div className="space-y-4">
-              <div className="text-sm font-bold text-secondary flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xs">🇨🇦</span>
-                Canadá
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-background border border-surface-border rounded-2xl p-4">
-                  <div className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Abordagens</div>
-                  <div className="flex items-end gap-2">
-                    <span className="text-2xl font-mono font-bold text-primary">{todayAgencyLog.canAbordagens}</span>
-                    <span className="text-sm text-text-muted font-mono mb-1">/16</span>
-                  </div>
-                  <div className="w-full bg-surface-border h-1.5 rounded-full mt-2 overflow-hidden">
-                    <div className="bg-primary h-full rounded-full" style={{ width: `${Math.min(100, (todayAgencyLog.canAbordagens / 16) * 100)}%` }} />
-                  </div>
-                </div>
-                <div className="bg-background border border-surface-border rounded-2xl p-4">
-                  <div className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Follow-ups</div>
-                  <div className="flex items-end gap-2">
-                    <span className="text-2xl font-mono font-bold text-primary">{todayAgencyLog.canFollowups}</span>
-                    <span className="text-sm text-text-muted font-mono mb-1">/8</span>
-                  </div>
-                  <div className="w-full bg-surface-border h-1.5 rounded-full mt-2 overflow-hidden">
-                    <div className="bg-primary h-full rounded-full" style={{ width: `${Math.min(100, (todayAgencyLog.canFollowups / 8) * 100)}%` }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Main Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

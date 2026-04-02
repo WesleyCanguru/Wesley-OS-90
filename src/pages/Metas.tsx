@@ -32,6 +32,9 @@ type Habit = {
   type: 'check' | 'numeric' | 'negative';
   target_value: number;
   unit: string;
+  color: string;
+  emoji: string;
+  area: 'alma' | 'corpo' | 'agencia';
 };
 
 type HabitLog = {
@@ -63,7 +66,7 @@ export function Metas() {
   const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
   
   // Dados Macro
-  const [goals, setGoals] = useState<{ corpo: any[], alma: any[], trabalho: any[] }>({ corpo: [], alma: [], trabalho: [] });
+  const [goals, setGoals] = useState<{ corpo: any[], alma: any[], agencia: any[] }>({ corpo: [], alma: [], agencia: [] });
   const [newGoal, setNewGoal] = useState({
     title: "",
     category: "Corpo",
@@ -80,7 +83,10 @@ export function Metas() {
     frequency_per_week: 7,
     type: 'check',
     target_value: 0,
-    unit: ""
+    unit: "",
+    color: "blue",
+    emoji: "🎯",
+    area: "alma"
   });
   const [weeklyLogs, setWeeklyLogs] = useState<Record<string, Record<string, HabitLog>>>({}); // habit_id -> date -> log
   const [weekDates, setWeekDates] = useState<Date[]>([]);
@@ -144,7 +150,7 @@ export function Metas() {
             inverse: goal.inverse || false
           });
           return acc;
-        }, { corpo: [], alma: [], trabalho: [] });
+        }, { corpo: [], alma: [], agencia: [] });
         setGoals(grouped);
       }
     } catch (error) {
@@ -283,7 +289,10 @@ export function Metas() {
       frequency_per_week: habit.frequency_per_week,
       type: habit.type,
       target_value: habit.target_value,
-      unit: habit.unit
+      unit: habit.unit,
+      color: habit.color || 'blue',
+      emoji: habit.emoji || '🎯',
+      area: habit.area || 'alma'
     });
     setIsHabitModalOpen(true);
   };
@@ -321,7 +330,10 @@ export function Metas() {
             frequency_per_week: newHabit.frequency_per_week,
             type: newHabit.type,
             target_value: newHabit.target_value,
-            unit: newHabit.unit
+            unit: newHabit.unit,
+            color: newHabit.color,
+            emoji: newHabit.emoji,
+            area: newHabit.area
           })
           .eq('id', editingHabitId);
 
@@ -336,13 +348,16 @@ export function Metas() {
             frequency_per_week: newHabit.frequency_per_week,
             type: newHabit.type,
             target_value: newHabit.target_value,
-            unit: newHabit.unit
+            unit: newHabit.unit,
+            color: newHabit.color,
+            emoji: newHabit.emoji,
+            area: newHabit.area
           }]);
 
         if (error) throw error;
       }
       
-      setNewHabit({ name: "", frequency_per_week: 7, type: 'check', target_value: 0, unit: "" });
+      setNewHabit({ name: "", frequency_per_week: 7, type: 'check', target_value: 0, unit: "", color: "blue", emoji: "🎯", area: "alma" });
       setIsHabitModalOpen(false);
       fetchTrackerData();
     } catch (error) {
@@ -590,20 +605,20 @@ export function Metas() {
               </div>
             </div>
 
-            {/* Trabalho */}
+            {/* Agência */}
             <div className="space-y-6">
               <div className="flex items-center justify-between pb-4 border-b border-surface-border">
                 <div className="flex items-center gap-3">
                   <Briefcase className="w-5 h-5 text-text-muted" />
-                  <h3 className="font-serif text-xl font-semibold text-secondary">Trabalho</h3>
+                  <h3 className="font-serif text-xl font-semibold text-secondary">Agência</h3>
                 </div>
                 <button onClick={() => setIsEditModalOpen(true)} className="text-primary hover:bg-primary/10 p-1.5 rounded-lg transition-colors"><Plus className="w-4 h-4"/></button>
               </div>
               <div className="space-y-4">
-                {goals.trabalho.map(goal => (
+                {goals.agencia.map(goal => (
                   <GoalCard key={goal.id} goal={goal} color="bg-orange-500" onEdit={handleEditGoalClick} onDelete={handleDeleteGoal} />
                 ))}
-                {goals.trabalho.length === 0 && <p className="text-sm text-text-muted italic">Nenhuma meta definida.</p>}
+                {goals.agencia.length === 0 && <p className="text-sm text-text-muted italic">Nenhuma meta definida.</p>}
               </div>
             </div>
           </div>
@@ -798,6 +813,31 @@ export function Metas() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
+              <label className="text-sm font-medium text-secondary">Emoji</label>
+              <input 
+                type="text"
+                value={newHabit.emoji}
+                onChange={(e) => setNewHabit({...newHabit, emoji: e.target.value})}
+                placeholder="Ex: 💧"
+                className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-center text-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-secondary">Área</label>
+              <select 
+                value={newHabit.area}
+                onChange={(e) => setNewHabit({...newHabit, area: e.target.value as any})}
+                className="w-full px-4 py-3 bg-background border border-surface-border rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+              >
+                <option value="alma">🟠 Alma</option>
+                <option value="corpo">🟢 Corpo</option>
+                <option value="agencia">🔵 Agência</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
               <label className="text-sm font-medium text-secondary">Tipo</label>
               <select 
                 value={newHabit.type}
@@ -874,10 +914,10 @@ export function Metas() {
           <div className="space-y-6">
             <h4 className="text-sm font-bold text-text-muted uppercase tracking-widest border-b border-surface-border pb-2">Metas Ativas</h4>
             <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
-              {[...goals.corpo, ...goals.alma, ...goals.trabalho].length === 0 && (
+              {[...goals.corpo, ...goals.alma, ...goals.agencia].length === 0 && (
                 <p className="text-sm text-text-muted italic">Nenhuma meta cadastrada.</p>
               )}
-              {[...goals.corpo, ...goals.alma, ...goals.trabalho].map(goal => (
+              {[...goals.corpo, ...goals.alma, ...goals.agencia].map(goal => (
                 <div key={goal.id} className="flex items-center justify-between p-4 bg-background border border-surface-border rounded-2xl">
                   <div>
                     <div className="font-medium text-secondary">{goal.title}</div>
@@ -926,7 +966,7 @@ export function Metas() {
                 >
                   <option>Corpo</option>
                   <option>Alma</option>
-                  <option>Trabalho</option>
+                  <option>Agência</option>
                 </select>
               </div>
               <div className="space-y-1.5">
