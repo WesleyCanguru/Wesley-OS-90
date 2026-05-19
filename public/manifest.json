@@ -1,30 +1,17 @@
 {
   "name": "Nosso Norte",
   "short_name": "Nosso Norte",
-  "description": "Seu aplicativo de direcionamento pessoal, metas, hábitos e produtividade.",
+  "description": "Moldando a intenção em arquitetura de vida.",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#F2EFE9",
-  "theme_color": "#F2EFE9",
+  "background_color": "#ffffff",
+  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/android-chrome-192x192.png",
-      "sizes": "192x192",
+      "src": "https://i.postimg.cc/hjGYZJyn/Canguru-Digital-Favicon-Nosso-Norte.png",
+      "sizes": "any",
       "type": "image/png",
       "purpose": "any maskable"
-    },
-    {
-      "src": "/android-chrome-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
     }
   ]
 }
