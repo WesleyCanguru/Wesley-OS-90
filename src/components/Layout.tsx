@@ -99,12 +99,13 @@ export function Layout({ user, onLogout }: { user: { name: string }, onLogout: (
             <img 
               src="https://i.postimg.cc/Gp47k0Hh/Nosso-Norte-Isotipo.png" 
               alt="Nosso Norte Isotipo" 
-              className="w-14 h-14 object-contain" 
+              className="w-[68px] h-[68px] object-contain" 
               referrerPolicy="no-referrer" 
             />
             <button 
               onClick={toggleSidebar}
-              className="w-8 h-8 rounded-xl bg-surface border border-surface-border shadow-sm flex items-center justify-center text-text-muted hover:text-primary hover:border-primary/30 transition-all duration-300"
+              className="w-10 h-10 rounded-2xl bg-text-muted/5 flex items-center justify-center text-text-muted hover:bg-text-muted/10 hover:text-primary transition-all duration-300 shadow-sm border border-transparent"
+              title="Expandir menu"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -112,22 +113,22 @@ export function Layout({ user, onLogout }: { user: { name: string }, onLogout: (
         ) : (
           <div className="p-6 pb-4 flex flex-col gap-5 w-full flex-shrink-0">
             <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <img 
                   src="https://i.postimg.cc/Gp47k0Hh/Nosso-Norte-Isotipo.png" 
                   alt="Nosso Norte Isotipo" 
-                  className="w-14 h-14 object-contain flex-shrink-0" 
+                  className="w-[74px] h-[74px] object-contain flex-shrink-0" 
                   referrerPolicy="no-referrer" 
                 />
                 <motion.div 
                   initial={{ opacity: 0, x: -5 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="overflow-hidden flex items-center"
+                  className="overflow-hidden flex items-center -ml-0.5"
                 >
                   <img 
                     src="https://i.postimg.cc/ZqW7rkCZ/Nosso-Norte-Escrita.png" 
                     alt="Nosso Norte" 
-                    className="h-10 object-contain" 
+                    className="h-13 object-contain" 
                     referrerPolicy="no-referrer" 
                   />
                 </motion.div>
@@ -135,7 +136,8 @@ export function Layout({ user, onLogout }: { user: { name: string }, onLogout: (
               
               <button 
                 onClick={toggleSidebar}
-                className="w-8 h-8 rounded-xl bg-surface border border-surface-border shadow-sm flex items-center justify-center text-text-muted hover:text-primary hover:border-primary/30 transition-all duration-300"
+                className="w-10 h-10 rounded-2xl bg-text-muted/5 flex items-center justify-center text-text-muted hover:bg-text-muted/10 hover:text-primary transition-all duration-300 shadow-sm border border-transparent"
+                title="Recolher menu"
               >
                 <ChevronRight className="w-4 h-4 transform rotate-180" />
               </button>
@@ -251,20 +253,20 @@ export function Layout({ user, onLogout }: { user: { name: string }, onLogout: (
 
       {/* Mobile Top Header */}
       <header className={cn(
-        "md:hidden fixed top-0 left-0 w-full z-50 px-6 py-5 flex items-center justify-between transition-all duration-700",
+        "md:hidden fixed top-0 left-0 w-full z-50 px-6 py-4 flex items-center justify-between transition-all duration-700",
         isScrolled || isMobileMenuOpen ? "bg-surface/90 backdrop-blur-2xl border-b border-surface-border shadow-sm" : "bg-transparent"
       )}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
             <img 
               src="https://i.postimg.cc/Gp47k0Hh/Nosso-Norte-Isotipo.png" 
               alt="Nosso Norte Isotipo" 
-              className="w-12 h-12 object-contain" 
+              className="w-16 h-16 object-contain flex-shrink-0" 
               referrerPolicy="no-referrer" 
             />
             <img 
               src="https://i.postimg.cc/ZqW7rkCZ/Nosso-Norte-Escrita.png" 
               alt="Nosso Norte" 
-              className="h-8 md:h-10 object-contain" 
+              className="h-11 md:h-13 object-contain -ml-0.5" 
               referrerPolicy="no-referrer" 
             />
           </div>
