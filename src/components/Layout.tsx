@@ -94,40 +94,54 @@ export function Layout({ user, onLogout }: { user: { name: string }, onLogout: (
         "hidden md:flex fixed left-0 top-0 h-full bg-surface/50 backdrop-blur-2xl border-r border-surface-border flex-col z-50 transition-all duration-700 overflow-hidden",
         isSidebarCollapsed ? "w-20" : "w-64"
       )}>
-        <div className="p-6 pb-4">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center text-[10px] text-white font-bold shadow-2xl shadow-primary/30 rotate-3 flex-shrink-0">NN</div>
-              {!isSidebarCollapsed && (
-                <motion.div 
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="overflow-hidden whitespace-nowrap"
-                >
-                  <span className="oryzo-logo block leading-none text-xl tracking-[-0.08em]">Nosso Norte</span>
-                  <span className="text-[7px] font-bold text-text-muted uppercase tracking-[0.4em] mt-1 block opacity-60">ARCHITECTS</span>
-                </motion.div>
-              )}
-            </div>
-            
+        {isSidebarCollapsed ? (
+          <div className="pt-6 pb-4 px-0 flex flex-col items-center gap-5 w-full flex-shrink-0">
+            <img 
+              src="https://i.postimg.cc/Gp47k0Hh/Nosso-Norte-Isotipo.png" 
+              alt="Nosso Norte Isotipo" 
+              className="w-14 h-14 object-contain" 
+              referrerPolicy="no-referrer" 
+            />
             <button 
               onClick={toggleSidebar}
-              className="text-text-muted hover:text-primary transition-colors p-1"
+              className="w-8 h-8 rounded-xl bg-surface border border-surface-border shadow-sm flex items-center justify-center text-text-muted hover:text-primary hover:border-primary/30 transition-all duration-300"
             >
-              {isSidebarCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          
-          {!isSidebarCollapsed && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.4 }}
-              className="text-[9px] font-bold text-text-muted uppercase tracking-[0.4em] mb-4 pl-4"
-            >
-              NAVEGAÇÃO / 0&bull;1
-            </motion.div>
-          )}
-        </div>
+        ) : (
+          <div className="p-6 pb-4 flex flex-col gap-5 w-full flex-shrink-0">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <img 
+                  src="https://i.postimg.cc/Gp47k0Hh/Nosso-Norte-Isotipo.png" 
+                  alt="Nosso Norte Isotipo" 
+                  className="w-14 h-14 object-contain flex-shrink-0" 
+                  referrerPolicy="no-referrer" 
+                />
+                <motion.div 
+                  initial={{ opacity: 0, x: -5 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="overflow-hidden flex items-center"
+                >
+                  <img 
+                    src="https://i.postimg.cc/ZqW7rkCZ/Nosso-Norte-Escrita.png" 
+                    alt="Nosso Norte" 
+                    className="h-10 object-contain" 
+                    referrerPolicy="no-referrer" 
+                  />
+                </motion.div>
+              </div>
+              
+              <button 
+                onClick={toggleSidebar}
+                className="w-8 h-8 rounded-xl bg-surface border border-surface-border shadow-sm flex items-center justify-center text-text-muted hover:text-primary hover:border-primary/30 transition-all duration-300"
+              >
+                <ChevronRight className="w-4 h-4 transform rotate-180" />
+              </button>
+            </div>
+          </div>
+        )}
         
         <nav className="flex-1 px-3 space-y-1.5 overflow-y-auto scrollbar-hide py-4">
           {navItems.map((item, index) => (
@@ -240,10 +254,20 @@ export function Layout({ user, onLogout }: { user: { name: string }, onLogout: (
         "md:hidden fixed top-0 left-0 w-full z-50 px-6 py-5 flex items-center justify-between transition-all duration-700",
         isScrolled || isMobileMenuOpen ? "bg-surface/90 backdrop-blur-2xl border-b border-surface-border shadow-sm" : "bg-transparent"
       )}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center text-[11px] text-white font-bold shadow-xl shadow-primary/20 rotate-3">NN</div>
-          <span className="oryzo-logo text-xl tracking-[-0.08em]">Nosso Norte</span>
-        </div>
+          <div className="flex items-center gap-3">
+            <img 
+              src="https://i.postimg.cc/Gp47k0Hh/Nosso-Norte-Isotipo.png" 
+              alt="Nosso Norte Isotipo" 
+              className="w-12 h-12 object-contain" 
+              referrerPolicy="no-referrer" 
+            />
+            <img 
+              src="https://i.postimg.cc/ZqW7rkCZ/Nosso-Norte-Escrita.png" 
+              alt="Nosso Norte" 
+              className="h-8 md:h-10 object-contain" 
+              referrerPolicy="no-referrer" 
+            />
+          </div>
         
         <button 
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -263,8 +287,7 @@ export function Layout({ user, onLogout }: { user: { name: string }, onLogout: (
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="fixed inset-0 z-40 bg-surface/95 backdrop-blur-3xl md:hidden pt-24 px-6 pb-12 flex flex-col"
           >
-            <div className="flex-1 space-y-2 overflow-y-auto scrollbar-hide">
-              <p className="text-[10px] font-bold text-text-muted uppercase tracking-[0.4em] mb-6 pl-4 opacity-40">MENUDESK / 0•1</p>
+            <div className="flex-1 space-y-2 overflow-y-auto scrollbar-hide pt-4">
               {navItems.map((item, index) => (
                 <NavLink
                   key={item.path}
