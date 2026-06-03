@@ -156,31 +156,107 @@ export function Metas() {
     }
   };
 
-  const [outcomes, setOutcomes] = useState<{id: string, title: string, position?: number}[]>([]);
+  const [outcomes, setOutcomes] = useState<any[]>([]);
   const [newOutcome, setNewOutcome] = useState('');
   const [editingOutcome, setEditingOutcome] = useState<{id: string, title: string} | null>(null);
+
+  // Estados de Conclusão e Evolução de Metas
+  const [selectedGoalForComplete, setSelectedGoalForComplete] = useState<any | null>(null);
+  const [completeWeek, setCompleteWeek] = useState<number>(1);
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+
+  const [selectedGoalForEvolve, setSelectedGoalForEvolve] = useState<any | null>(null);
+  const [evolvedTitle, setEvolvedTitle] = useState<string>('');
+  const [isEvolveModalOpen, setIsEvolveModalOpen] = useState(false);
+  const [isEvolving, setIsEvolving] = useState(false);
 
   const fetchOutcomes = async () => {
     if (!user || !cycle) return;
     try {
-      // Trying to fetch position if it exists. If it fails due to column not existing, code should ideally catch but we'll try to just select it.
-      // Easiest is to select everything to avoid hardcoded columns if one might be missing, or just assume it'll be added by the user.
       const { data, error } = await supabase
         .from('cycle_outcomes')
-        .select('id, title, position')
+        .select('*')
         .eq('cycle_id', cycle.id)
         .eq('user_name', user.name)
         .order('position', { ascending: true, nullsFirst: false });
       
       if (error) {
-         // Fallback if position doesn't exist yet
-         const fallback = await supabase.from('cycle_outcomes').select('id, title').eq('cycle_id', cycle.id).eq('user_name', user.name);
+         const fallback = await supabase.from('cycle_outcomes').select('*').eq('cycle_id', cycle.id).eq('user_name', user.name);
          setOutcomes(fallback.data || []);
          return;
       }
       setOutcomes(data || []);
     } catch (e) {
       console.error("Erro ao buscar metas:", e);
+    }
+  };
+
+  const handleCompleteGoal = async () => {
+    if (!user || !selectedGoalForComplete) return;
+    setIsCompleting(true);
+    try {
+      const { error } = await supabase
+        .from('cycle_outcomes')
+        .update({ is_completed: true, completed_week: completeWeek })
+        .eq('id', selectedGoalForComplete.id)
+        .eq('user_name', user.name);
+
+      if (error) throw error;
+      
+      await fetchOutcomes();
+      setIsCompleteModalOpen(false);
+      setSelectedGoalForComplete(null);
+    } catch (err: any) {
+      console.error("Erro ao completar meta:", err);
+      alert(`Houve um erro ao salvar a conclusão: ${err.message || err}`);
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  const handleEvolveGoal = async () => {
+    if (!user || !cycle || !selectedGoalForEvolve || !evolvedTitle) return;
+    setIsEvolving(true);
+    try {
+      // 1. Criar a nova meta ativa evoluída
+      const { data: newGoalData, error: newGoalError } = await supabase
+        .from('cycle_outcomes')
+        .insert({
+          user_name: user.name,
+          cycle_id: cycle.id,
+          title: evolvedTitle,
+          parent_id: selectedGoalForEvolve.id,
+          is_completed: false,
+          completed_week: null,
+          position: (outcomes.length > 0 ? Math.max(...outcomes.map(o => o.position || 0)) + 1 : 0)
+        })
+        .select()
+        .single();
+
+      if (newGoalError) throw newGoalError;
+
+      // 2. Vincular os hábitos da meta concluída à nova meta evoluída ativa
+      if (newGoalData) {
+        const { error: updateHabitsError } = await supabase
+          .from('habits')
+          .update({ goal_id: newGoalData.id })
+          .eq('goal_id', selectedGoalForEvolve.id)
+          .eq('user_name', user.name);
+
+        if (updateHabitsError) throw updateHabitsError;
+      }
+
+      await fetchOutcomes();
+      await fetchHabits();
+      setIsEvolveModalOpen(false);
+      setSelectedGoalForEvolve(null);
+      setEvolvedTitle('');
+    } catch (err: any) {
+      console.error("Erro ao evoluir meta:", err);
+      alert(`Houve um erro ao evoluir a meta: ${err.message || err}`);
+    } finally {
+      setIsEvolving(false);
     }
   };
 
@@ -426,7 +502,10 @@ export function Metas() {
                             initial={{ opacity: 0, x: -20 }}
                             whileInView={{ opacity: 1, x: 0 }}
                             viewport={{ once: true }}
-                            className="bg-surface border border-surface-border rounded-[2rem] p-8 space-y-4 shadow-sm relative overflow-hidden group hover:border-primary/20 transition-all"
+                            className={cn(
+                              "bg-surface border border-surface-border rounded-[2rem] p-8 space-y-4 shadow-sm relative overflow-hidden group hover:border-primary/20 transition-all",
+                              goal.is_completed && "bg-gradient-to-br from-surface to-amber-500/5 border-amber-500/10"
+                            )}
                           >
                             <div 
                               {...provided.dragHandleProps}
@@ -435,47 +514,124 @@ export function Metas() {
                               <GripVertical className="w-5 h-5" />
                             </div>
                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><span className="text-7xl font-display font-bold italic">{idx + 1}</span></div>
-                            <div className="w-12 h-12 bg-primary/5 rounded-2xl flex items-center justify-center border border-primary/10 shadow-inner group-hover:scale-110 transition-transform">
-                              <Target className="w-5 h-5 text-primary" />
+                            
+                            <div className="flex gap-3 items-center justify-between">
+                              <div className={cn(
+                                "w-12 h-12 rounded-2xl flex items-center justify-center border shadow-inner group-hover:scale-110 transition-transform",
+                                goal.is_completed 
+                                  ? "bg-amber-500/10 border-amber-500/20 text-amber-600" 
+                                  : "bg-primary/5 border-primary/10 text-primary"
+                              )}>
+                                {goal.is_completed ? <Sparkles className="w-5 h-5" /> : <Target className="w-5 h-5" />}
+                              </div>
+                              
+                              {goal.is_completed && (
+                                <span className="bg-amber-500/15 text-amber-700 border border-amber-500/20 px-2.5 py-1 rounded-full text-[9px] font-extrabold tracking-widest uppercase flex items-center gap-1">
+                                  🏆 Batida na S{goal.completed_week}
+                                </span>
+                              )}
                             </div>
-                  <div className="space-y-2 relative z-10 w-full">
-                    <p className="text-[8px] font-bold text-primary uppercase tracking-[0.4em]">Meta Inegociável</p>
-                    {editingOutcome?.id === goal.id ? (
-                      <div className="flex flex-col gap-2">
-                        <input 
-                          type="text" 
-                          value={editingOutcome.title}
-                          onChange={(e) => setEditingOutcome({ ...editingOutcome, title: e.target.value })}
-                          className="w-full bg-transparent border-b border-primary focus:outline-none text-xl md:text-2xl font-display font-bold text-secondary tracking-tight"
-                          autoFocus
-                          onKeyDown={(e) => { if (e.key === 'Enter') updateOutcome(); }}
-                        />
-                        <div className="flex gap-2">
-                          <button onClick={updateOutcome} className="text-[9px] font-bold text-primary uppercase">Salvar</button>
-                          <button onClick={() => setEditingOutcome(null)} className="text-[9px] font-bold text-text-muted uppercase">Cancelar</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <h3 className="text-xl md:text-2xl font-display font-bold text-secondary uppercase leading-none tracking-tight">{goal.title}</h3>
-                    )}
-                  </div>
-                  <div className="pt-4 flex items-center justify-between border-t border-surface-border/50">
-                    <span className="text-[8px] font-bold text-text-muted uppercase tracking-widest">
-                      {habits.filter(h => h.goal_id === goal.id).length} Hábitos Vinculados
-                    </span>
-                    <div className="flex gap-2">
-                      <button onClick={() => setEditingOutcome(goal)} className="p-2 text-text-muted hover:text-primary transition-all">
-                        <Pencil className="w-4 h-4"/>
-                      </button>
-                      <button 
-                        onClick={() => setDeleteTarget({ id: goal.id, type: 'outcome' })} 
-                        className="p-2 text-text-muted hover:text-red-500 transition-all"
-                      >
-                        <Trash2 className="w-4 h-4"/>
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
+
+                            <div className="space-y-2 relative z-10 w-full">
+                              <p className="text-[8px] font-bold text-primary uppercase tracking-[0.4em]">
+                                {goal.is_completed ? "Vitória Alcançada" : "Meta Inegociável"}
+                              </p>
+                              {editingOutcome?.id === goal.id ? (
+                                <div className="flex flex-col gap-2">
+                                  <input 
+                                    type="text" 
+                                    value={editingOutcome.title}
+                                    onChange={(e) => setEditingOutcome({ ...editingOutcome, title: e.target.value })}
+                                    className="w-full bg-transparent border-b border-primary focus:outline-none text-xl md:text-2xl font-display font-bold text-secondary tracking-tight"
+                                    autoFocus
+                                    onKeyDown={(e) => { if (e.key === 'Enter') updateOutcome(); }}
+                                  />
+                                  <div className="flex gap-2">
+                                    <button onClick={updateOutcome} className="text-[9px] font-bold text-primary uppercase">Salvar</button>
+                                    <button onClick={() => setEditingOutcome(null)} className="text-[9px] font-bold text-text-muted uppercase">Cancelar</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <h3 className={cn(
+                                    "text-xl md:text-2xl font-display font-bold uppercase leading-none tracking-tight",
+                                    goal.is_completed ? "text-secondary/70 line-through decoration-amber-500/30" : "text-secondary"
+                                  )}>
+                                    {goal.title}
+                                  </h3>
+                                  
+                                  {(() => {
+                                    const parentGoal = outcomes.find(o => o.id === goal.parent_id);
+                                    if (parentGoal) {
+                                      return (
+                                        <div className="mt-2.5 p-2.5 bg-primary/5 rounded-xl border border-primary/10 text-[9px] text-primary/95 flex items-start gap-1.5 font-semibold">
+                                          <TrendingUp className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                                          <span>Evolução de: <span className="font-bold underline">{parentGoal.title}</span> (Batida na S{parentGoal.completed_week})</span>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="pt-4 flex flex-col gap-3 border-t border-surface-border/50">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[8px] font-bold text-text-muted uppercase tracking-widest">
+                                  {habits.filter(h => h.goal_id === goal.id).length} Hábitos Vinculados
+                                </span>
+                                <div className="flex gap-1">
+                                  {!goal.is_completed && (
+                                    <button onClick={() => setEditingOutcome(goal)} className="p-1.5 text-text-muted hover:text-primary transition-all">
+                                      <Pencil className="w-3.5 h-3.5"/>
+                                    </button>
+                                  )}
+                                  <button 
+                                    onClick={() => setDeleteTarget({ id: goal.id, type: 'outcome' })} 
+                                    className="p-1.5 text-text-muted hover:text-red-500 transition-all"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5"/>
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="flex gap-2 w-full">
+                                {!goal.is_completed ? (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedGoalForComplete(goal);
+                                      const curW = cycleInfo ? Math.ceil(cycleInfo.currentDay / 7) : 1;
+                                      setCompleteWeek(Math.min(12, Math.max(1, curW)));
+                                      setIsCompleteModalOpen(true);
+                                    }}
+                                    className="w-full py-2 bg-amber-500/10 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-500/20 hover:border-amber-500 rounded-xl text-[9px] font-extrabold tracking-widest uppercase transition-all flex items-center justify-center gap-1"
+                                  >
+                                    <Check className="w-3 h-3" />
+                                    <span>Bater Meta 🏆</span>
+                                  </button>
+                                ) : (
+                                  !outcomes.some(o => o.parent_id === goal.id) ? (
+                                    <button
+                                      onClick={() => {
+                                        setSelectedGoalForEvolve(goal);
+                                        setEvolvedTitle(goal.title);
+                                        setIsEvolveModalOpen(true);
+                                      }}
+                                      className="w-full py-2 bg-primary/10 hover:bg-primary text-primary hover:text-white border border-primary/20 hover:border-primary rounded-xl text-[9px] font-extrabold tracking-widest uppercase transition-all flex items-center justify-center gap-1"
+                                    >
+                                      <Zap className="w-3 h-3 animate-pulse" />
+                                      <span>Evoluir Meta ⚡</span>
+                                    </button>
+                                  ) : (
+                                    <div className="w-full py-1.5 bg-text-muted/5 border border-text-muted/10 rounded-xl text-[8px] font-bold text-text-muted tracking-widest uppercase flex items-center justify-center gap-1">
+                                      <span>Evoluída com Sucesso ✓</span>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          </motion.div>
               </div>
 
               <div className="lg:col-span-8">
@@ -691,6 +847,80 @@ export function Metas() {
           </div>
           
           <Button onClick={saveHabit} className="w-full py-8 text-[10px] font-bold rounded-2xl shadow-xl transition-all bg-secondary text-white uppercase tracking-[0.3em] hover:scale-[1.01] active:scale-95">Consolidar Hábito</Button>
+        </div>
+      </Modal>
+
+      {/* Modal de confirmação para marcar meta como batida */}
+      <Modal 
+        isOpen={isCompleteModalOpen} 
+        onClose={() => { setIsCompleteModalOpen(false); setSelectedGoalForComplete(null); }} 
+        title="Marcar Meta como Batida 🏆"
+      >
+        <div className="space-y-6 p-1">
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex gap-3 items-center">
+            <div className="text-2xl">🎉</div>
+            <p className="text-xs font-semibold text-amber-800 leading-normal">
+              Parabéns pelo progresso! Selecione em qual semana do ciclo atual você atingiu o objetivo para registrar este marco.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[9px] font-bold text-text-muted uppercase tracking-[0.3em] block pl-1">Semana de Conquista</label>
+            <select 
+              value={completeWeek} 
+              onChange={(e) => setCompleteWeek(Number(e.target.value))} 
+              className="w-full bg-surface-hover/20 border border-surface-border rounded-xl px-4 py-3 text-xs font-bold uppercase tracking-widest text-secondary outline-none focus:border-primary transition-all appearance-none cursor-pointer"
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(w => (
+                <option key={w} value={w}>Semana {w}</option>
+              ))}
+            </select>
+          </div>
+
+          <Button 
+            onClick={handleCompleteGoal} 
+            disabled={isCompleting}
+            className="w-full py-5 text-[9px] font-bold rounded-xl bg-amber-500 text-white uppercase tracking-[0.3em] hover:bg-amber-600 shadow-md transition-colors"
+          >
+            {isCompleting ? "Registrando vitória..." : "Consolidar Vitória 🏆"}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Modal para Evolução de Meta */}
+      <Modal 
+        isOpen={isEvolveModalOpen} 
+        onClose={() => { setIsEvolveModalOpen(false); setSelectedGoalForEvolve(null); }} 
+        title="Evoluir Meta ⚡"
+      >
+        <div className="space-y-6 p-1">
+          <div className="bg-primary/5 border border-primary/15 rounded-2xl p-4 flex gap-3 items-center">
+            <div className="text-2xl">🚀</div>
+            <p className="text-xs font-semibold text-primary leading-normal">
+              Metas batidas abrem espaço para novos patamares de excelência. Digite o novo objetivo aprimorado abaixo.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[9px] font-bold text-text-muted uppercase tracking-[0.3em] block pl-1">Nova Meta Aprimorada</label>
+            <textarea 
+              value={evolvedTitle} 
+              onChange={(e) => setEvolvedTitle(e.target.value)} 
+              placeholder="Ex: Chegar a 80 kg e manter musculatura com rotina forte" 
+              className="w-full h-24 bg-surface-hover/20 border border-surface-border rounded-xl px-4 py-3 text-sm font-semibold text-secondary outline-none focus:border-primary transition-all resize-none"
+            />
+            <p className="text-[8px] text-text-muted/80 pl-1">
+              * Ao apoiar a evolução desta meta, todos os hábitos previamente associados à meta "{selectedGoalForEvolve?.title}" serão migrados automaticamente para a nova meta ativa.
+            </p>
+          </div>
+
+          <Button 
+            onClick={handleEvolveGoal} 
+            disabled={isEvolving || !evolvedTitle}
+            className="w-full py-5 text-[9px] font-bold rounded-xl bg-primary text-white uppercase tracking-[0.3em] hover:opacity-95 shadow-md transition-all"
+          >
+            {isEvolving ? "Evoluindo arquitetura..." : "Evoluir e Persistir ⚡"}
+          </Button>
         </div>
       </Modal>
 

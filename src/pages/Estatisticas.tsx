@@ -34,6 +34,7 @@ export function Estatisticas() {
   const [habitsData, setHabitsData] = useState<any[]>([]);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [overview, setOverview] = useState({
     aderenciaSemanal: 0,
     aderenciaMensal: 0,
@@ -225,45 +226,72 @@ export function Estatisticas() {
               <h2 className="text-2xl font-display font-bold text-secondary">Execução Semanal</h2>
               <p className="text-xs text-text-muted font-medium mt-1">Sua jornada nas 12 semanas do ciclo atual</p>
             </div>
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-primary/5 rounded-full border border-primary/10">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/5 rounded-full border border-primary/10">
               <Calendar className="w-3.5 h-3.5 text-primary" />
               <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Meta: 85%</span>
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 h-48 md:h-56">
-            <div className="relative flex-1 flex gap-2 md:gap-3 items-end">
-              {/* 85% Indicator line across the whole container */}
-              <div className="absolute left-0 right-0 w-full border-t border-dashed border-text-muted/30 pointer-events-none z-0" style={{ bottom: '85%' }} />
+          <p className="text-xs text-text-muted block md:hidden -mt-4 bg-background/50 p-2.5 rounded-lg border border-surface-border/50">
+            💡 <span className="font-semibold">Dica:</span> Toque em uma barra para destacá-la e ver os dados de adesão.
+          </p>
+
+          <div className="flex flex-col gap-3 h-60 md:h-72 pt-8">
+            {/* Arena unificada de barras e rótulos para alinhamento absoluto e preciso */}
+            <div className="relative flex-1 flex gap-2 md:gap-3 items-stretch">
+              {/* Linha guia de 85% para a meta do livro */}
+              <div 
+                className="absolute left-0 right-0 border-t border-dashed border-primary/45 pointer-events-none z-0" 
+                style={{ bottom: '85%' }} 
+              />
+              <span 
+                className="absolute right-0 -top-5 text-[9px] font-bold text-primary/75 bg-surface/90 px-1 rounded border border-primary/10 tracking-widest uppercase pointer-events-none"
+                style={{ bottom: '85%' }}
+              >
+                Meta 85%
+              </span>
               
               {weeklyData.map((w) => (
-                <div key={w.week} className="flex flex-col items-center justify-end gap-2 h-full group relative z-10 w-full">
-                  <div className="w-full relative h-full">
+                <div key={w.week} className="flex-1 flex flex-col justify-end items-center h-full group relative z-10">
+                  {/* Container da barra */}
+                  <div className="relative w-full flex-1 flex items-end justify-center min-h-[40px]">
                     <div 
                       className={cn(
-                        "absolute bottom-0 left-0 right-0 w-full rounded-t-lg transition-all duration-500",
-                        w.isFuture ? "bg-surface-border/20" : w.score >= 85 ? "bg-primary" : "bg-accent/40",
-                        w.isCurrent && "ring-2 ring-primary ring-offset-4 ring-offset-surface"
+                        "w-full max-w-[28px] rounded-t-lg transition-all duration-300 relative cursor-pointer flex flex-col justify-end",
+                        w.isFuture 
+                          ? "bg-surface-border/15 h-[10%]" 
+                          : w.score >= 85 
+                            ? "bg-primary hover:brightness-105" 
+                            : "bg-accent/45 hover:brightness-105",
+                        w.isCurrent && "ring-2 ring-primary ring-offset-4 ring-offset-surface",
+                        selectedWeek === w.week && "ring-4 ring-primary ring-offset-2 ring-offset-surface scale-105 z-30"
                       )}
                       style={{ height: w.isFuture ? '10%' : `${Math.max(10, w.score)}%` }}
+                      onClick={() => {
+                        if (!w.isFuture) {
+                          setSelectedWeek(selectedWeek === w.week ? null : w.week);
+                        }
+                      }}
                     >
+                      {/* Percentual sob a barra - sempre visível em telas menores ou no active do desktop */}
                       {!w.isFuture && (
-                        <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-secondary opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-surface px-1.5 py-0.5 rounded shadow-sm border border-surface-border z-20">
+                        <div className={cn(
+                          "absolute -top-7 left-1/2 -translate-x-1/2 text-[9px] md:text-[10px] font-extrabold whitespace-nowrap px-1.5 py-0.5 rounded shadow-sm z-20 pointer-events-none transition-all transform scale-95 opacity-0 md:group-hover:opacity-100 md:group-hover:scale-100 bg-secondary text-white",
+                          // Se for tela de toque/mobile, mostramos sempre de maneira limpa para facilitar ver os números
+                          "block md:hidden opacity-100 scale-100 !bg-secondary/90",
+                          // Se clicado/ativado em qualquer tamanho
+                          selectedWeek === w.week && "!opacity-100 !scale-110 bg-primary ring-1 ring-white/30 !text-[11px] pb-1"
+                        )}>
                           {w.score}%
                         </div>
                       )}
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="flex gap-2 md:gap-3 w-full justify-between px-[5%]">
-              {weeklyData.map((w) => (
-                <div key={w.week} className="w-full text-center">
+
+                  {/* Nome da semana exatamente sob a barra */}
                   <span className={cn(
-                    "text-[10px] font-bold",
-                    w.isCurrent ? "text-primary" : "text-text-muted"
+                    "text-[10px] font-bold mt-2.5 block text-center w-full truncate transition-all duration-200 border-t border-transparent pt-1",
+                    w.isCurrent ? "text-primary border-t-2 border-primary/20 pt-1 font-black scale-105" : "text-text-muted"
                   )}>
                     S{w.week}
                   </span>

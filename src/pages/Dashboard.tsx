@@ -380,17 +380,40 @@ export function Dashboard() {
               transition={{ delay: i * 0.05 }}
               viewport={{ once: true }}
               onClick={() => setSelectedGoal(goal)}
-              className="group p-5 md:p-6 rounded-3xl border border-surface-border transition-all duration-700 flex flex-col justify-between h-36 md:h-40 card-3d bg-surface hover:border-primary/20 cursor-pointer"
+              className={cn(
+                "group p-5 md:p-6 rounded-3xl border border-surface-border transition-all duration-700 flex flex-col justify-between h-36 md:h-40 card-3d bg-surface hover:border-primary/20 cursor-pointer",
+                goal.is_completed && "bg-gradient-to-br from-surface to-amber-500/5 border-amber-500/20 hover:border-amber-500/30"
+              )}
             >
               <div className="flex justify-between items-start">
-                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl border border-primary/10 bg-primary/5 flex items-center justify-center text-primary transition-all duration-700 group-hover:scale-110 group-hover:-rotate-6">
-                  <Target className="w-4 h-4 md:w-5 md:h-5" />
+                <div className={cn(
+                  "w-10 h-10 md:w-12 md:h-12 rounded-xl border flex items-center justify-center transition-all duration-700 group-hover:scale-110 group-hover:-rotate-6",
+                  goal.is_completed 
+                    ? "border-amber-500/10 bg-amber-500/10 text-amber-600" 
+                    : "border-primary/10 bg-primary/5 text-primary"
+                )}>
+                  {goal.is_completed ? <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-amber-500 animate-pulse" /> : <Target className="w-4 h-4 md:w-5 md:h-5" />}
                 </div>
+                
+                {goal.is_completed && (
+                  <span className="bg-amber-500/15 text-amber-700 border border-amber-500/25 px-2 py-0.5 rounded-full text-[8px] font-extrabold tracking-widest uppercase">
+                    🏆 S{goal.completed_week}
+                  </span>
+                )}
               </div>
               <div>
-                <h3 className="text-base md:text-lg font-display font-bold text-secondary group-hover:text-primary transition-colors uppercase tracking-tight line-clamp-2 leading-tight">{goal.title}</h3>
-                <div className="flex items-center gap-3 mt-1.5">
-                   <p className="text-[7px] md:text-[8px] font-bold text-text-muted uppercase tracking-widest">META INEGOCIÁVEL</p>
+                <h3 className={cn(
+                  "text-base md:text-lg font-display font-bold group-hover:text-primary transition-colors uppercase tracking-tight line-clamp-2 leading-tight",
+                  goal.is_completed ? "text-secondary/70 line-through decoration-amber-500/20" : "text-secondary"
+                )}>
+                  {goal.title}
+                </h3>
+                <div className="flex items-center gap-3 mt-1.5 font-bold tracking-widest text-[7px] md:text-[8px]">
+                   {goal.is_completed ? (
+                     <p className="text-amber-600 uppercase">VITÓRIA ALCANÇADA</p>
+                   ) : (
+                     <p className="text-text-muted uppercase">META INEGOCIÁVEL</p>
+                   )}
                 </div>
               </div>
             </motion.div>
@@ -533,6 +556,35 @@ export function Dashboard() {
             title={selectedGoal.title}
           >
             <div className="space-y-6">
+              {/* STATUS/CONDUÇÃO BANNER */}
+              {selectedGoal.is_completed && (
+                <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-600 animate-pulse">
+                    🏆
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-amber-700 uppercase tracking-widest">Vitória Consistente!</h4>
+                    <p className="text-[10px] text-amber-600/90 font-medium leading-normal">Esta meta foi atingida com sucesso na Semana {selectedGoal.completed_week} do ciclo atual!</p>
+                  </div>
+                </div>
+              )}
+
+              {(() => {
+                const parentGoal = outcomes.find(o => o.id === selectedGoal.parent_id);
+                if (parentGoal) {
+                  return (
+                    <div className="bg-primary/5 border border-primary/10 p-3.5 rounded-2xl flex items-start gap-2.5 text-[10px] text-primary/95 font-semibold">
+                      <TrendingUp className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                      <div>
+                        <span className="block font-bold uppercase tracking-wider text-[8px] text-primary/70">Meta Evoluída de</span>
+                        <span>{parentGoal.title} (completada na S{parentGoal.completed_week})</span>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               <div className="space-y-3">
                 <p className="text-[10px] font-bold text-text-muted uppercase tracking-[0.4em]">Hábitos Estratégicos</p>
                 <div className="grid grid-cols-1 gap-2">
