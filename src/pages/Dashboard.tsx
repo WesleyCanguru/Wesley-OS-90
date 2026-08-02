@@ -278,7 +278,7 @@ export function Dashboard() {
               </div>
               
               <p className="text-white/60 text-sm md:text-base font-light leading-relaxed max-w-sm">
-                “Um ciclo por vez, moldando a intenção em arquitetura de vida.”
+                “Grandes vidas são construídas uma pequena ação por vez.”
               </p>
 
               <div className="flex flex-wrap gap-3 pt-2">
@@ -365,8 +365,8 @@ export function Dashboard() {
       <div className="space-y-6 mb-12">
         <div className="flex items-end justify-between px-2 md:px-0">
           <div>
-            <h2 className="text-xl md:text-2xl font-display font-bold text-secondary uppercase tracking-tight">Grandes Vitórias</h2>
-            <p className="text-text-muted mt-1 font-medium text-[9px] md:text-[10px]">As metas inegociáveis do seu ciclo de 12 semanas.</p>
+            <h2 className="text-xl md:text-2xl font-display font-bold text-secondary uppercase tracking-tight">Missões das 12 Semanas</h2>
+            <p className="text-text-muted mt-1 font-medium text-[9px] md:text-[10px]">As missões que definirão o sucesso deste ciclo de 12 semanas.</p>
           </div>
           <button onClick={() => navigate("/metas")} className="text-[8px] md:text-[9px] font-bold text-primary uppercase tracking-[0.3em] hover:opacity-70 transition-opacity">Ver Todas</button>
         </div>
@@ -381,15 +381,25 @@ export function Dashboard() {
               viewport={{ once: true }}
               onClick={() => setSelectedGoal(goal)}
               className={cn(
-                "group p-5 md:p-6 rounded-3xl border border-surface-border transition-all duration-700 flex flex-col justify-between h-36 md:h-40 card-3d bg-surface hover:border-primary/20 cursor-pointer",
-                goal.is_completed && "bg-gradient-to-br from-surface to-amber-500/5 border-amber-500/20 hover:border-amber-500/30"
+                "group p-5 md:p-6 rounded-3xl border border-surface-border transition-all duration-700 flex flex-col justify-between h-36 md:h-40 card-3d bg-surface hover:border-primary/20 cursor-pointer relative overflow-hidden",
+                goal.is_completed && "bg-gradient-to-br from-surface via-amber-500/5 to-amber-500/10 border-amber-500/30 shadow-[0_4px_20px_rgba(245,158,11,0.08)]"
               )}
             >
-              <div className="flex justify-between items-start">
+              {/* Subtle, elegant achievement glow animation for completed missions */}
+              {goal.is_completed && (
+                <motion.div 
+                  initial={{ opacity: 0.2 }}
+                  animate={{ opacity: [0.2, 0.6, 0.2] }}
+                  transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute -inset-px rounded-3xl border border-amber-500/40 pointer-events-none shadow-[inset_0_0_12px_rgba(245,158,11,0.08)]"
+                />
+              )}
+
+              <div className="flex justify-between items-start relative z-10">
                 <div className={cn(
                   "w-10 h-10 md:w-12 md:h-12 rounded-xl border flex items-center justify-center transition-all duration-700 group-hover:scale-110 group-hover:-rotate-6",
                   goal.is_completed 
-                    ? "border-amber-500/10 bg-amber-500/10 text-amber-600" 
+                    ? "border-amber-500/20 bg-amber-500/10 text-amber-600" 
                     : "border-primary/10 bg-primary/5 text-primary"
                 )}>
                   {goal.is_completed ? <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-amber-500 animate-pulse" /> : <Target className="w-4 h-4 md:w-5 md:h-5" />}
@@ -401,20 +411,26 @@ export function Dashboard() {
                   </span>
                 )}
               </div>
-              <div>
+              <div className="relative z-10">
                 <h3 className={cn(
-                  "text-base md:text-lg font-display font-bold group-hover:text-primary transition-colors uppercase tracking-tight line-clamp-2 leading-tight",
+                  "text-base md:text-lg font-display font-bold group-hover:text-primary transition-colors uppercase tracking-tight line-clamp-1 leading-tight",
                   goal.is_completed ? "text-secondary/70 line-through decoration-amber-500/20" : "text-secondary"
                 )}>
                   {goal.title}
                 </h3>
-                <div className="flex items-center gap-3 mt-1.5 font-bold tracking-widest text-[7px] md:text-[8px]">
-                   {goal.is_completed ? (
-                     <p className="text-amber-600 uppercase">VITÓRIA ALCANÇADA</p>
-                   ) : (
-                     <p className="text-text-muted uppercase">META INEGOCIÁVEL</p>
-                   )}
-                </div>
+                {goal.description ? (
+                  <p className="text-[10px] text-text-muted line-clamp-2 mt-1 leading-snug font-normal italic">
+                    {goal.description}
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-3 mt-1.5 font-bold tracking-widest text-[7px] md:text-[8px]">
+                     {goal.is_completed ? (
+                       <p className="text-amber-600 uppercase">MISSÃO CONCLUÍDA</p>
+                     ) : (
+                       <p className="text-text-muted uppercase">MISSÃO ATIVA</p>
+                     )}
+                  </div>
+                )}
               </div>
             </motion.div>
           )) : (
@@ -556,6 +572,16 @@ export function Dashboard() {
             title={selectedGoal.title}
           >
             <div className="space-y-6">
+              {/* DESCRIPTION / SUBTITLE BANNER */}
+              {selectedGoal.description && (
+                <div className="bg-primary/5 border-l-4 border-primary p-4 rounded-r-2xl space-y-1">
+                  <p className="text-[8px] font-bold text-primary uppercase tracking-[0.3em]">Descrição da Missão</p>
+                  <p className="text-xs md:text-sm text-secondary font-medium leading-relaxed italic">
+                    "{selectedGoal.description}"
+                  </p>
+                </div>
+              )}
+
               {/* STATUS/CONDUÇÃO BANNER */}
               {selectedGoal.is_completed && (
                 <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl flex items-center gap-3">

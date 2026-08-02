@@ -157,8 +157,10 @@ export function Metas() {
   };
 
   const [outcomes, setOutcomes] = useState<any[]>([]);
-  const [newOutcome, setNewOutcome] = useState('');
-  const [editingOutcome, setEditingOutcome] = useState<{id: string, title: string} | null>(null);
+  const [newOutcomeTitle, setNewOutcomeTitle] = useState('');
+  const [newOutcomeDescription, setNewOutcomeDescription] = useState('');
+  const [isNewOutcomeModalOpen, setIsNewOutcomeModalOpen] = useState(false);
+  const [editingOutcome, setEditingOutcome] = useState<{id: string, title: string, description?: string} | null>(null);
 
   // Estados de Conclusão e Evolução de Metas
   const [selectedGoalForComplete, setSelectedGoalForComplete] = useState<any | null>(null);
@@ -310,40 +312,71 @@ export function Metas() {
   const cycleInfo = getCycleProgress();
 
   const addOutcome = async () => {
-    if (!user || !cycle || !newOutcome) {
+    if (!user || !cycle || !newOutcomeTitle.trim()) {
       if (!cycle) alert("Você precisa iniciar um ciclo antes de adicionar metas.");
       return;
     }
     try {
-      const { error } = await supabase.from('cycle_outcomes').insert({
+      const nextPos = outcomes.length > 0 ? Math.max(...outcomes.map(o => o.position || 0)) + 1 : 0;
+      const payload = {
         user_name: user.name,
         cycle_id: cycle.id,
-        title: newOutcome
-      });
-      if (error) throw error;
-      setNewOutcome('');
+        title: newOutcomeTitle.trim(),
+        description: newOutcomeDescription.trim() || null,
+        position: nextPos
+      };
+
+      let { error } = await supabase.from('cycle_outcomes').insert(payload);
+
+      if (error) {
+        console.warn("Falha no insert com descrição, tentando sem coluna de descrição:", error);
+        const { error: fallbackErr } = await supabase.from('cycle_outcomes').insert({
+          user_name: user.name,
+          cycle_id: cycle.id,
+          title: newOutcomeTitle.trim()
+        });
+        if (fallbackErr) throw fallbackErr;
+      }
+
+      setNewOutcomeTitle('');
+      setNewOutcomeDescription('');
+      setIsNewOutcomeModalOpen(false);
       fetchOutcomes();
     } catch (error: any) {
-      console.error("Erro ao adicionar meta:", error);
-      alert(`Houve um erro ao salvar a meta: ${error.message || 'Erro desconhecido'}`);
+      console.error("Erro ao adicionar missão:", error);
+      alert(`Houve um erro ao salvar a missão: ${error.message || 'Erro desconhecido'}`);
     }
   };
 
   const updateOutcome = async () => {
-    if (!user || !cycle || !editingOutcome || !editingOutcome.title) return;
+    if (!user || !cycle || !editingOutcome || !editingOutcome.title.trim()) return;
     try {
-      const { error } = await supabase
+      const payload = {
+        title: editingOutcome.title.trim(),
+        description: editingOutcome.description?.trim() || null
+      };
+
+      let { error } = await supabase
         .from('cycle_outcomes')
-        .update({ title: editingOutcome.title })
+        .update(payload)
         .eq('id', editingOutcome.id)
         .eq('user_name', user.name);
-      
-      if (error) throw error;
+
+      if (error) {
+        console.warn("Falha no update com descrição, tentando apenas título:", error);
+        const { error: fallbackErr } = await supabase
+          .from('cycle_outcomes')
+          .update({ title: editingOutcome.title.trim() })
+          .eq('id', editingOutcome.id)
+          .eq('user_name', user.name);
+        if (fallbackErr) throw fallbackErr;
+      }
+
       setEditingOutcome(null);
       fetchOutcomes();
     } catch (error: any) {
-      console.error("Erro ao atualizar meta:", error);
-      alert(`Houve um erro ao atualizar a meta: ${error.message || 'Erro desconhecido'}`);
+      console.error("Erro ao atualizar missão:", error);
+      alert(`Houve um erro ao atualizar a missão: ${error.message || 'Erro desconhecido'}`);
     }
   };
 
@@ -456,21 +489,18 @@ export function Metas() {
               <div className="w-8 h-8 md:w-10 md:h-10 bg-primary/10 rounded-xl flex items-center justify-center">
                 <Target className="w-4 h-4 text-primary" />
               </div>
-              <h2 className="text-xl md:text-3xl font-display font-bold text-secondary uppercase tracking-tight">Arquitetura de Sucesso</h2>
+              <h2 className="text-xl md:text-3xl font-display font-bold text-secondary uppercase tracking-tight">Missões das 12 Semanas</h2>
             </div>
-            <p className="text-text-muted text-[10px] md:text-xs max-w-xl font-light">Mapeie seus hábitos diretamente às suas grandes metas. Cada ação deve servir ao seu propósito maior.</p>
+            <p className="text-text-muted text-[10px] md:text-xs max-w-xl font-light">As missões que definirão o sucesso deste ciclo de 12 semanas. Mapeie seus hábitos a cada uma delas.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex items-center gap-2 bg-surface border border-surface-border p-1.5 rounded-xl md:min-w-[300px]">
-              <input 
-                type="text" 
-                value={newOutcome} 
-                onChange={(e) => setNewOutcome(e.target.value)} 
-                placeholder="Nova Grande Vitória..." 
-                className="flex-1 bg-transparent px-3 py-1.5 text-[10px] font-bold text-secondary outline-none uppercase tracking-widest placeholder:text-text-muted/50"
-              />
-              <button onClick={addOutcome} className="bg-primary text-white p-2 rounded-lg hover:scale-105 transition-transform"><Plus className="w-3.5 h-3.5"/></button>
-            </div>
+            <button 
+              onClick={() => setIsNewOutcomeModalOpen(true)} 
+              className="bg-primary text-white h-11 px-6 rounded-xl font-bold flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-xl uppercase text-[9px] tracking-widest"
+            >
+              <Plus className="w-3.5 h-3.5"/>
+              <span>Nova Missão</span>
+            </button>
             <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="bg-secondary text-white h-11 px-6 rounded-xl font-bold flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-xl uppercase text-[9px] tracking-widest"><Plus className="w-3.5 h-3.5"/><span>Novo Hábito</span></button>
           </div>
         </header>
@@ -504,9 +534,19 @@ export function Metas() {
                             viewport={{ once: true }}
                             className={cn(
                               "bg-surface border border-surface-border rounded-[2rem] p-8 space-y-4 shadow-sm relative overflow-hidden group hover:border-primary/20 transition-all",
-                              goal.is_completed && "bg-gradient-to-br from-surface to-amber-500/5 border-amber-500/10"
+                              goal.is_completed && "bg-gradient-to-br from-surface via-amber-500/5 to-amber-500/10 border-amber-500/30 shadow-[0_4px_20px_rgba(245,158,11,0.08)]"
                             )}
                           >
+                            {/* Subtle, elegant achievement glow animation for completed missions */}
+                            {goal.is_completed && (
+                              <motion.div 
+                                initial={{ opacity: 0.2 }}
+                                animate={{ opacity: [0.2, 0.6, 0.2] }}
+                                transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+                                className="absolute -inset-px rounded-[2rem] border border-amber-500/40 pointer-events-none shadow-[inset_0_0_12px_rgba(245,158,11,0.08)]"
+                              />
+                            )}
+
                             <div 
                               {...provided.dragHandleProps}
                               className="absolute top-4 left-4 p-2 text-surface-border hover:text-text-muted cursor-grab active:cursor-grabbing opacity-50 hover:opacity-100 transition-opacity z-20"
@@ -515,7 +555,7 @@ export function Metas() {
                             </div>
                             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><span className="text-7xl font-display font-bold italic">{idx + 1}</span></div>
                             
-                            <div className="flex gap-3 items-center justify-between">
+                            <div className="flex gap-3 items-center justify-between relative z-10">
                               <div className={cn(
                                 "w-12 h-12 rounded-2xl flex items-center justify-center border shadow-inner group-hover:scale-110 transition-transform",
                                 goal.is_completed 
@@ -527,38 +567,57 @@ export function Metas() {
                               
                               {goal.is_completed && (
                                 <span className="bg-amber-500/15 text-amber-700 border border-amber-500/20 px-2.5 py-1 rounded-full text-[9px] font-extrabold tracking-widest uppercase flex items-center gap-1">
-                                  🏆 Batida na S{goal.completed_week}
+                                  🏆 Concluída na S{goal.completed_week}
                                 </span>
                               )}
                             </div>
 
                             <div className="space-y-2 relative z-10 w-full">
                               <p className="text-[8px] font-bold text-primary uppercase tracking-[0.4em]">
-                                {goal.is_completed ? "Vitória Alcançada" : "Meta Inegociável"}
+                                {goal.is_completed ? "Missão Concluída" : "Missão Ativa"}
                               </p>
                               {editingOutcome?.id === goal.id ? (
-                                <div className="flex flex-col gap-2">
-                                  <input 
-                                    type="text" 
-                                    value={editingOutcome.title}
-                                    onChange={(e) => setEditingOutcome({ ...editingOutcome, title: e.target.value })}
-                                    className="w-full bg-transparent border-b border-primary focus:outline-none text-xl md:text-2xl font-display font-bold text-secondary tracking-tight"
-                                    autoFocus
-                                    onKeyDown={(e) => { if (e.key === 'Enter') updateOutcome(); }}
-                                  />
+                                <div className="flex flex-col gap-3 my-2 bg-surface-hover/30 p-3 rounded-2xl border border-primary/20">
+                                  <div>
+                                    <label className="text-[8px] font-bold text-text-muted uppercase tracking-wider block mb-1">Título da Missão</label>
+                                    <input 
+                                      type="text" 
+                                      value={editingOutcome.title}
+                                      onChange={(e) => setEditingOutcome({ ...editingOutcome, title: e.target.value })}
+                                      placeholder="Ex: Ser um homem saudável"
+                                      className="w-full bg-surface border border-surface-border focus:border-primary rounded-xl px-3 py-2 text-sm font-bold text-secondary outline-none"
+                                      autoFocus
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[8px] font-bold text-text-muted uppercase tracking-wider block mb-1">Descrição / Subtítulo</label>
+                                    <textarea 
+                                      value={editingOutcome.description || ''}
+                                      onChange={(e) => setEditingOutcome({ ...editingOutcome, description: e.target.value })}
+                                      placeholder="Ex: Construindo um corpo forte e disciplinado..."
+                                      rows={3}
+                                      className="w-full bg-surface border border-surface-border focus:border-primary rounded-xl px-3 py-2 text-xs font-medium text-secondary outline-none resize-none leading-relaxed"
+                                    />
+                                  </div>
                                   <div className="flex gap-2">
-                                    <button onClick={updateOutcome} className="text-[9px] font-bold text-primary uppercase">Salvar</button>
-                                    <button onClick={() => setEditingOutcome(null)} className="text-[9px] font-bold text-text-muted uppercase">Cancelar</button>
+                                    <button onClick={updateOutcome} className="px-3 py-1.5 bg-primary text-white rounded-lg text-[9px] font-bold uppercase tracking-wider hover:opacity-90">Salvar</button>
+                                    <button onClick={() => setEditingOutcome(null)} className="px-3 py-1.5 bg-surface-border text-text-muted rounded-lg text-[9px] font-bold uppercase tracking-wider hover:bg-surface-border/80">Cancelar</button>
                                   </div>
                                 </div>
                               ) : (
-                                <div>
+                                <div className="space-y-2">
                                   <h3 className={cn(
-                                    "text-xl md:text-2xl font-display font-bold uppercase leading-none tracking-tight",
+                                    "text-xl md:text-2xl font-display font-bold uppercase leading-tight tracking-tight",
                                     goal.is_completed ? "text-secondary/70 line-through decoration-amber-500/30" : "text-secondary"
                                   )}>
                                     {goal.title}
                                   </h3>
+
+                                  {goal.description && (
+                                    <p className="text-xs text-text-muted font-normal leading-relaxed italic border-l-2 border-primary/30 pl-3 py-0.5 my-1.5">
+                                      {goal.description}
+                                    </p>
+                                  )}
                                   
                                   {(() => {
                                     const parentGoal = outcomes.find(o => o.id === goal.parent_id);
@@ -608,7 +667,7 @@ export function Metas() {
                                     className="w-full py-2 bg-amber-500/10 hover:bg-amber-500 text-amber-700 hover:text-white border border-amber-500/20 hover:border-amber-500 rounded-xl text-[9px] font-extrabold tracking-widest uppercase transition-all flex items-center justify-center gap-1"
                                   >
                                     <Check className="w-3 h-3" />
-                                    <span>Bater Meta 🏆</span>
+                                    <span>Concluir Missão 🏆</span>
                                   </button>
                                 ) : (
                                   !outcomes.some(o => o.parent_id === goal.id) ? (
@@ -854,13 +913,13 @@ export function Metas() {
       <Modal 
         isOpen={isCompleteModalOpen} 
         onClose={() => { setIsCompleteModalOpen(false); setSelectedGoalForComplete(null); }} 
-        title="Marcar Meta como Batida 🏆"
+        title="Concluir Missão 🏆"
       >
         <div className="space-y-6 p-1">
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex gap-3 items-center">
             <div className="text-2xl">🎉</div>
             <p className="text-xs font-semibold text-amber-800 leading-normal">
-              Parabéns pelo progresso! Selecione em qual semana do ciclo atual você atingiu o objetivo para registrar este marco.
+              Parabéns pelo progresso! Selecione em qual semana do ciclo atual você cumpriu esta missão para registrar este marco.
             </p>
           </div>
 
@@ -882,7 +941,7 @@ export function Metas() {
             disabled={isCompleting}
             className="w-full py-5 text-[9px] font-bold rounded-xl bg-amber-500 text-white uppercase tracking-[0.3em] hover:bg-amber-600 shadow-md transition-colors"
           >
-            {isCompleting ? "Registrando vitória..." : "Consolidar Vitória 🏆"}
+            {isCompleting ? "Registrando conquista..." : "Concluir Missão 🏆"}
           </Button>
         </div>
       </Modal>
@@ -921,6 +980,62 @@ export function Metas() {
           >
             {isEvolving ? "Evoluindo arquitetura..." : "Evoluir e Persistir ⚡"}
           </Button>
+        </div>
+      </Modal>
+
+      {/* Modal de Criação de Nova Missão */}
+      <Modal
+        isOpen={isNewOutcomeModalOpen}
+        onClose={() => { setIsNewOutcomeModalOpen(false); setNewOutcomeTitle(''); setNewOutcomeDescription(''); }}
+        title="Criar Nova Missão 🎯"
+      >
+        <div className="space-y-5 p-1">
+          <div>
+            <label className="text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] block mb-1.5">
+              Título da Missão *
+            </label>
+            <input
+              type="text"
+              value={newOutcomeTitle}
+              onChange={(e) => setNewOutcomeTitle(e.target.value)}
+              placeholder="Ex: Ser um homem saudável"
+              className="w-full bg-surface-hover/50 border border-surface-border focus:border-primary/50 rounded-xl px-4 py-3 text-sm md:text-base font-bold text-secondary outline-none transition-colors"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && newOutcomeTitle.trim()) addOutcome(); }}
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] block mb-1.5">
+              Descrição / Subtítulo (Opcional)
+            </label>
+            <textarea
+              value={newOutcomeDescription}
+              onChange={(e) => setNewOutcomeDescription(e.target.value)}
+              placeholder="Ex: Construindo um corpo forte e disciplinado, saudável para viver plenamente essa nova fase da minha vida..."
+              rows={4}
+              className="w-full bg-surface-hover/50 border border-surface-border focus:border-primary/50 rounded-xl px-4 py-3 text-xs md:text-sm font-medium text-secondary outline-none transition-colors resize-none leading-relaxed"
+            />
+          </div>
+
+          <div className="pt-2 flex gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => { setIsNewOutcomeModalOpen(false); setNewOutcomeTitle(''); setNewOutcomeDescription(''); }}
+              className="flex-1 py-3 text-[10px] font-bold uppercase tracking-widest"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={addOutcome}
+              disabled={!newOutcomeTitle.trim()}
+              className="flex-1 py-3 text-[10px] font-bold uppercase tracking-widest bg-primary text-white hover:bg-primary/90"
+            >
+              Criar Missão
+            </Button>
+          </div>
         </div>
       </Modal>
 
