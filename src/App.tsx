@@ -10,6 +10,7 @@ import { Layout } from "./components/Layout";
 import { Dashboard } from "./pages/Dashboard";
 import { Habitos } from "./pages/Habitos";
 import { Metas } from "./pages/Metas";
+import { Manifesto } from "./pages/Manifesto";
 import { DDD } from "./pages/DDD";
 import { Pomodoro } from "./pages/Pomodoro";
 import { Estatisticas } from "./pages/Estatisticas";
@@ -55,6 +56,7 @@ export default function App() {
         <Route path="/" element={<Layout user={user} onLogout={() => setUser(null)} />}>
           <Route index element={<Dashboard />} />
           <Route path="metas" element={<Metas />} />
+          <Route path="manifesto" element={<Manifesto />} />
           <Route path="habitos" element={<Habitos />} />
           <Route path="ddd" element={<DDD />} />
           <Route path="pomodoro" element={<Pomodoro />} />

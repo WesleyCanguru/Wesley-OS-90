@@ -14,7 +14,8 @@ import {
   X,
   Calendar,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Compass
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -27,6 +28,7 @@ import { parseISO, format } from "date-fns";
 const navItems = [
   { name: "Início", path: "/", icon: LayoutDashboard },
   { name: "Metas", path: "/metas", icon: Target },
+  { name: "Manifesto", path: "/manifesto", icon: Compass },
   { name: "Hábitos", path: "/habitos", icon: Zap },
   { name: "DDD", path: "/ddd", icon: ListTodo },
   { name: "Pomodoro", path: "/pomodoro", icon: Timer },
