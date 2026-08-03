@@ -10,7 +10,9 @@ import {
   Calendar,
   Clock,
   Sparkles,
-  Edit2
+  Edit2,
+  Check,
+  X
 } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { useCycle } from "@/hooks/useCycle";
@@ -94,12 +96,18 @@ export function Dashboard() {
 
       const mappedHabits = habits?.map(h => {
         const weeklyCompletions = logs?.filter(l => l.habit_id === h.id && l.completed === true).length || 0;
-        const isDoneToday = logs?.find(l => l.habit_id === h.id && l.date === todayStr && l.completed === true);
-        const isTheoreticallyDone = weeklyCompletions >= (h.frequency_per_week || 7);
+        const todayLog = logs?.find(l => l.habit_id === h.id && l.date === todayStr);
+        let status: 'done' | 'failed' | 'none' = 'none';
+        if (todayLog) {
+          status = todayLog.completed ? 'done' : 'failed';
+        }
+        const isTheoreticallyDone = status === 'none' && weeklyCompletions >= (h.frequency_per_week || 7);
         return {
           ...h,
-          done: !!isDoneToday || isTheoreticallyDone,
-          isTheoreticallyDone: !isDoneToday && isTheoreticallyDone
+          status,
+          weeklyCompletions,
+          done: status === 'done' || isTheoreticallyDone,
+          isTheoreticallyDone
         };
       }) || [];
 
@@ -154,19 +162,41 @@ export function Dashboard() {
     if (!user) return;
     
     const habit = todayHabits.find(h => h.id === habitId);
-    if (!habit || habit.isTheoreticallyDone) return;
+    if (!habit) return;
 
-    const nextStatus = !habit.done;
+    let nextStatus: 'done' | 'failed' | 'none' = 'none';
+    if (habit.status === 'none' || !habit.status) {
+      nextStatus = 'done';
+    } else if (habit.status === 'done') {
+      nextStatus = 'failed';
+    } else if (habit.status === 'failed') {
+      nextStatus = 'none';
+    }
 
     try {
-      // Otimistic update
-      setTodayHabits(prev => prev.map(h => 
-        h.id === habitId ? { ...h, done: nextStatus } : h
-      ));
+      // Optimistic update
+      setTodayHabits(prev => prev.map(h => {
+        if (h.id !== habitId) return h;
+
+        let newWeeklyCompletions = h.weeklyCompletions || 0;
+        if (h.status === 'done' && nextStatus !== 'done') {
+          newWeeklyCompletions = Math.max(0, newWeeklyCompletions - 1);
+        } else if (h.status !== 'done' && nextStatus === 'done') {
+          newWeeklyCompletions = newWeeklyCompletions + 1;
+        }
+
+        return {
+          ...h,
+          status: nextStatus,
+          weeklyCompletions: newWeeklyCompletions,
+          done: nextStatus === 'done',
+          isTheoreticallyDone: nextStatus === 'none' && newWeeklyCompletions >= (h.frequency_per_week || 7)
+        };
+      }));
       
       setStats(prev => ({
         ...prev,
-        habitsDone: nextStatus ? prev.habitsDone + 1 : prev.habitsDone - 1
+        habitsDone: nextStatus === 'done' ? prev.habitsDone + 1 : (habit.status === 'done' ? Math.max(0, prev.habitsDone - 1) : prev.habitsDone)
       }));
 
       // Find existing log to avoid upsert
@@ -178,7 +208,7 @@ export function Dashboard() {
         .eq('date', todayStr)
         .maybeSingle();
 
-      if (nextStatus) {
+      if (nextStatus === 'done') {
         if (existingLog) {
           await supabase
             .from('habit_logs')
@@ -195,7 +225,24 @@ export function Dashboard() {
               value: 1
             });
         }
-      } else {
+      } else if (nextStatus === 'failed') {
+        if (existingLog) {
+          await supabase
+            .from('habit_logs')
+            .update({ completed: false, value: 0 })
+            .eq('id', existingLog.id);
+        } else {
+          await supabase
+            .from('habit_logs')
+            .insert({
+              user_name: user.name,
+              habit_id: habitId,
+              date: todayStr,
+              completed: false,
+              value: 0
+            });
+        }
+      } else if (nextStatus === 'none') {
         if (existingLog) {
           await supabase
             .from('habit_logs')
@@ -205,7 +252,6 @@ export function Dashboard() {
       }
     } catch (error) {
       console.error("Error toggling habit status:", error);
-      // Revert if error
       fetchDashboardData();
     }
   };
@@ -461,57 +507,93 @@ export function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-            {todayHabits.map((habit, i) => (
-              <motion.div 
-                key={habit.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className={cn(
-                  "bg-surface border border-surface-border p-3 md:p-4 rounded-2xl flex items-center gap-3 md:gap-4 group hover:border-primary/20 transition-all card-3d",
-                  habit.done ? "opacity-60 bg-primary/5" : ""
-                )}
-              >
-                <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center text-white flex-shrink-0 transition-transform group-hover:scale-105",
-                  habit.done ? "grayscale contrast-125" : ""
-                )} style={{ backgroundColor: habit.color || '#5E6E5A' }}>
-                  <Zap className="w-4 h-4 md:w-5 md:h-5" />
-                </div>
+            {todayHabits.map((habit, i) => {
+              const isDone = habit.status === 'done';
+              const isFailed = habit.status === 'failed';
+              const isNone = habit.status === 'none' || !habit.status;
 
-                <div className="flex-1 min-w-0">
-                  <p className={cn("text-[10px] md:text-xs font-bold uppercase truncate transition-colors", habit.done ? "text-text-muted" : "text-secondary")}>{habit.name}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5 md:mt-1">
-                    <span className="text-[7px] md:text-[8px] font-bold text-text-muted uppercase tracking-[0.2em]">{habit.area || "Geral"}</span>
-                    <span className="w-1 h-1 rounded-full bg-surface-border" />
-                    {habit.isTheoreticallyDone ? (
-                      <span className="text-[7px] md:text-[8px] font-bold text-accent uppercase tracking-[0.2em]">Meta Semanal Cumprida</span>
-                    ) : (
-                      <span className="text-[7px] md:text-[8px] font-bold text-primary uppercase tracking-[0.2em]">{habit?.type === 'numeric' ? `${habit.daily_goal} ${habit.unit}` : 'Check'}</span>
-                    )}
-                  </div>
-                </div>
-
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleHabitStatus(habit.id);
-                  }}
+              return (
+                <motion.div 
+                  key={habit.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
                   className={cn(
-                    "w-8 h-8 md:w-10 md:h-10 rounded-full border flex items-center justify-center transition-all duration-300 active:scale-95 flex-shrink-0",
-                    habit.done 
-                      ? habit.isTheoreticallyDone
-                        ? "bg-accent/20 border-accent/20 text-accent cursor-not-allowed"
-                        : "bg-primary border-primary text-white shadow-md shadow-primary/20"
-                      : "border-surface-border hover:border-primary hover:bg-primary/5 text-primary"
+                    "bg-surface border p-3.5 md:p-4 rounded-2xl flex items-center justify-between gap-3 md:gap-4 group hover:border-primary/30 transition-all card-3d min-h-[82px]",
+                    isDone ? "bg-emerald-500/5 border-emerald-500/20" : "",
+                    isFailed ? "bg-red-500/5 border-red-500/20" : "border-surface-border"
                   )}
                 >
-                  {habit.done 
-                   ? <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current" /> 
-                   : <div className="w-1.5 h-1.5 rounded-full bg-surface-border group-hover:bg-primary transition-colors" />}
-                </button>
-              </motion.div>
-            ))}
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div 
+                      className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center text-white flex-shrink-0 transition-transform group-hover:scale-105 shadow-sm",
+                        isDone ? "bg-emerald-600" : isFailed ? "bg-red-500" : ""
+                      )} 
+                      style={{ backgroundColor: (isDone || isFailed) ? undefined : (habit.color || '#5E6E5A') }}
+                    >
+                      <Zap className="w-4 h-4 md:w-5 md:h-5" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-[10px] md:text-xs font-bold uppercase transition-colors break-words leading-snug",
+                        isDone ? "text-text-muted line-through decoration-emerald-500/40" : isFailed ? "text-red-600/80 line-through decoration-red-500/40" : "text-secondary"
+                      )}>
+                        {habit.name}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <span className="text-[7px] md:text-[8px] font-bold text-text-muted uppercase tracking-[0.15em]">
+                          {habit.area || "Geral"}
+                        </span>
+                        <span className="w-1 h-1 rounded-full bg-surface-border" />
+                        <span className="text-[7px] md:text-[8px] font-bold text-primary uppercase tracking-[0.15em]">
+                          {habit.frequency_per_week || 7}x/SEMANA
+                        </span>
+                        <span className="text-[7px] md:text-[8px] font-semibold text-text-muted">
+                          ({habit.weeklyCompletions || 0}/{habit.frequency_per_week || 7})
+                        </span>
+                        {habit.isTheoreticallyDone && isNone && (
+                          <span className="text-[7px] md:text-[8px] font-bold text-accent uppercase tracking-[0.15em]">
+                            • META CUMPRIDA
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleHabitStatus(habit.id);
+                    }}
+                    title={
+                      isDone ? "Status: Concluído (Clique para marcar X)" :
+                      isFailed ? "Status: Não Feito (Clique para zerar)" :
+                      "Status: Pendente (Clique para concluir)"
+                    }
+                    className={cn(
+                      "w-8 h-8 md:w-10 md:h-10 rounded-full border flex items-center justify-center transition-all duration-300 active:scale-95 flex-shrink-0 shadow-sm",
+                      isDone 
+                        ? "bg-emerald-600 border-emerald-600 text-white shadow-emerald-600/20"
+                        : isFailed
+                        ? "bg-red-500 border-red-500 text-white shadow-red-500/20"
+                        : "border-surface-border hover:border-primary hover:bg-primary/5 text-primary"
+                    )}
+                  >
+                    {isDone ? (
+                      <Check className="w-3.5 h-3.5 md:w-4 md:h-4 stroke-[3]" />
+                    ) : isFailed ? (
+                      <X className="w-3.5 h-3.5 md:w-4 md:h-4 stroke-[3]" />
+                    ) : (
+                      <div className="w-1.5 h-1.5 rounded-full bg-surface-border group-hover:bg-primary transition-colors" />
+                    )}
+                  </button>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
 
