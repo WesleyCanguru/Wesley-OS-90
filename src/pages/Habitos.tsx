@@ -20,6 +20,7 @@ import { Modal } from "@/components/Modal";
 import { Button } from "@/components/Button";
 import { format } from "date-fns";
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import { HabitDetailModal } from "@/components/HabitDetailModal";
 
 type Habit = {
   id: string;
@@ -47,6 +48,8 @@ export function Habitos() {
   const [habits, setHabits] = useState<any[]>([]);
   const [logs, setLogs] = useState<HabitLog[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
+  const [viewingHabit, setViewingHabit] = useState<any | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => {
     const today = new Date();
     const day = today.getDay();
@@ -425,17 +428,29 @@ export function Habitos() {
                                           <GripVertical className="w-4 h-4" />
                                         </div>
                                         <div 
-                                          className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shadow-sm transition-all duration-700 group-hover:scale-110 group-hover:-rotate-6 border border-black/5 flex-shrink-0"
+                                          onClick={() => {
+                                            setViewingHabit(habit);
+                                            setIsViewModalOpen(true);
+                                          }}
+                                          className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shadow-sm transition-all duration-700 group-hover:scale-110 group-hover:-rotate-6 border border-black/5 flex-shrink-0 cursor-pointer"
                                           style={{ backgroundColor: habit.color || '#5E6E5A' }}
+                                          title="Clique para ver detalhes do hábito"
                                         >
                                           <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-white" />
                                         </div>
-                                        <div className="min-w-0">
-                                          <h3 className="font-display font-bold text-secondary text-sm md:text-lg group-hover:text-primary transition-colors tracking-tight uppercase leading-tight truncate">{habit.name}</h3>
+                                        <div 
+                                          onClick={() => {
+                                            setViewingHabit(habit);
+                                            setIsViewModalOpen(true);
+                                          }}
+                                          className="min-w-0 cursor-pointer group/title"
+                                          title="Clique para ver detalhes do hábito"
+                                        >
+                                          <h3 className="font-display font-bold text-secondary text-sm md:text-lg group-hover/title:text-primary transition-colors tracking-tight uppercase leading-tight truncate">{habit.name}</h3>
                                           <p className="text-[6px] md:text-[8px] text-text-muted font-bold uppercase tracking-[0.2em] flex items-center gap-1.5 mt-0.5 md:mt-1">
-                                             <span className="w-1 h-1 rounded-full bg-primary/20 group-hover:bg-primary/40 transition-colors" />
+                                             <span className="w-1 h-1 rounded-full bg-primary/20 group-hover/title:bg-primary/40 transition-colors" />
                                              {habit.area || "Geral"}
-                                             <span className="w-1 h-1 rounded-full bg-primary/20 group-hover:bg-primary/40 transition-colors" />
+                                             <span className="w-1 h-1 rounded-full bg-primary/20 group-hover/title:bg-primary/40 transition-colors" />
                                              <span className="text-primary">{habit.frequency_per_week}x/SEMANA</span>
                                           </p>
                                         </div>
@@ -499,6 +514,18 @@ export function Habitos() {
         </div>
       </div>
 
+      <HabitDetailModal 
+        isOpen={isViewModalOpen}
+        onClose={() => {
+          setIsViewModalOpen(false);
+          setViewingHabit(null);
+        }}
+        habit={viewingHabit}
+        goalTitle={goals.find(g => g.id === viewingHabit?.goal_id)?.title}
+        onEdit={() => {
+          navigate('/metas');
+        }}
+      />
     </div>
   );
 }

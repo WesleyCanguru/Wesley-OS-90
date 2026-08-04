@@ -33,6 +33,7 @@ import { Button } from "@/components/Button";
 import { format, parseISO, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { HabitDetailModal } from "@/components/HabitDetailModal";
 
 type Habit = {
   id: string;
@@ -79,6 +80,8 @@ export function Metas() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+  const [viewingHabit, setViewingHabit] = useState<Habit | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isCycleModalOpen, setIsCycleModalOpen] = useState(false);
   const [newCycleStartDate, setNewCycleStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [deleteTarget, setDeleteTarget] = useState<{ id: string, type: 'habit' | 'outcome' } | null>(null);
@@ -701,20 +704,44 @@ export function Metas() {
                       initial={{ opacity: 0, y: 10 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true }}
-                      className="bg-white/40 backdrop-blur-sm border border-surface-border rounded-3xl p-6 space-y-4 group hover:shadow-xl hover:bg-white transition-all border-dashed"
+                      onClick={() => {
+                        setViewingHabit(habit);
+                        setIsViewModalOpen(true);
+                      }}
+                      className="bg-white/40 backdrop-blur-sm border border-surface-border rounded-3xl p-6 space-y-4 group hover:shadow-xl hover:bg-white transition-all border-dashed cursor-pointer"
                     >
                       <div className="flex justify-between items-start">
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-black/5 shadow-sm" style={{ backgroundColor: habit.color || '#5E6E5A' }}>
                           <Sparkles className="w-4 h-4 text-white" />
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => handleEdit(habit)} className="p-2 bg-surface border border-surface-border rounded-lg text-text-muted hover:text-primary transition-all"><Pencil className="w-3 h-3"/></button>
-                          <button onClick={() => setDeleteTarget({ id: habit.id, type: 'habit' })} className="p-2 bg-surface border border-surface-border rounded-lg text-text-muted hover:text-red-500 transition-all"><Trash2 className="w-3 h-3"/></button>
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(habit);
+                            }} 
+                            className="p-2 bg-surface border border-surface-border rounded-lg text-text-muted hover:text-primary transition-all"
+                            title="Editar hábito"
+                          >
+                            <Pencil className="w-3 h-3"/>
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteTarget({ id: habit.id, type: 'habit' });
+                            }} 
+                            className="p-2 bg-surface border border-surface-border rounded-lg text-text-muted hover:text-red-500 transition-all"
+                            title="Excluir hábito"
+                          >
+                            <Trash2 className="w-3 h-3"/>
+                          </button>
                         </div>
                       </div>
-                      <h3 className="text-base font-display font-bold text-secondary uppercase tracking-tight truncate">{habit.name}</h3>
+                      <h3 className="text-base font-display font-bold text-secondary uppercase tracking-tight leading-snug">{habit.name}</h3>
                       {habit.motivation && (
-                        <p className="text-[10px] text-text-muted italic leading-relaxed line-clamp-2 pt-1 border-t border-surface-border/20 mt-1">
+                        <p className="text-xs text-text-muted italic leading-relaxed pt-2 border-t border-surface-border/20 mt-1 whitespace-pre-wrap">
                           "{habit.motivation}"
                         </p>
                       )}
@@ -764,20 +791,44 @@ export function Metas() {
                      initial={{ opacity: 0, scale: 0.95 }}
                      whileInView={{ opacity: 1, scale: 1 }}
                      viewport={{ once: true }}
-                     className="bg-surface border border-surface-border rounded-2xl p-5 space-y-4 group hover:shadow-xl transition-all shadow-sm"
+                     onClick={() => {
+                       setViewingHabit(habit);
+                       setIsViewModalOpen(true);
+                     }}
+                     className="bg-surface border border-surface-border rounded-2xl p-5 space-y-4 group hover:shadow-xl transition-all shadow-sm cursor-pointer"
                    >
                      <div className="flex justify-between items-start">
                        <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-black/5" style={{ backgroundColor: habit.color || '#5E6E5A' }}>
                          <Sparkles className="w-4 h-4 text-white" />
                        </div>
                        <div className="flex gap-1.5">
-                         <button onClick={() => handleEdit(habit)} className="p-1.5 text-text-muted hover:text-primary transition-all"><Pencil className="w-3 h-3"/></button>
-                         <button onClick={() => setDeleteTarget({ id: habit.id, type: 'habit' })} className="p-1.5 text-text-muted hover:text-red-500 transition-all"><Trash2 className="w-3 h-3"/></button>
+                         <button 
+                           type="button"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             handleEdit(habit);
+                           }} 
+                           className="p-1.5 text-text-muted hover:text-primary transition-all"
+                           title="Editar hábito"
+                         >
+                           <Pencil className="w-3 h-3"/>
+                         </button>
+                         <button 
+                           type="button"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setDeleteTarget({ id: habit.id, type: 'habit' });
+                           }} 
+                           className="p-1.5 text-text-muted hover:text-red-500 transition-all"
+                           title="Excluir hábito"
+                         >
+                           <Trash2 className="w-3 h-3"/>
+                         </button>
                        </div>
                      </div>
-                     <h3 className="text-base font-display font-bold text-secondary uppercase tracking-tight truncate">{habit.name}</h3>
+                     <h3 className="text-base font-display font-bold text-secondary uppercase tracking-tight leading-snug">{habit.name}</h3>
                      {habit.motivation && (
-                       <p className="text-[10px] text-text-muted italic leading-relaxed line-clamp-2 pt-1 border-t border-surface-border/20 mt-1">
+                       <p className="text-xs text-text-muted italic leading-relaxed pt-2 border-t border-surface-border/20 mt-1 whitespace-pre-wrap">
                          "{habit.motivation}"
                        </p>
                      )}
@@ -1052,6 +1103,22 @@ export function Metas() {
         }}
         title={`Excluir ${deleteTarget?.type === 'outcome' ? 'Meta' : 'Hábito'}`}
         description={`Tem certeza que deseja excluir est${deleteTarget?.type === 'outcome' ? 'a' : 'e'} ${deleteTarget?.type === 'outcome' ? 'meta' : 'hábito'}? Esta ação não pode ser desfeita.`}
+      />
+
+      <HabitDetailModal 
+        isOpen={isViewModalOpen}
+        onClose={() => {
+          setIsViewModalOpen(false);
+          setViewingHabit(null);
+        }}
+        habit={viewingHabit}
+        goalTitle={outcomes.find(o => o.id === viewingHabit?.goal_id)?.title}
+        onEdit={(habit) => {
+          const originalHabit = habits.find(h => h.id === habit.id);
+          if (originalHabit) {
+            handleEdit(originalHabit);
+          }
+        }}
       />
     </div>
   );
